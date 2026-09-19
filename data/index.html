@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thunderstruck EVCC Gateway & Simulator</title>
+    <style>
+        :root {
+            --bg-base: #0b0f19;
+            --bg-surface: #111827;
+            --bg-card: #1f293d;
+            --bg-card-hover: #27354f;
+            --border: #374151;
+            --border-highlight: #4b5563;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --primary: #06b6d4;
+            --primary-glow: rgba(6, 182, 212, 0.35);
+            --accent: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --purple-glow: rgba(139, 92, 246, 0.35);
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.4);
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.45);
+            --font: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: var(--font);
+            line-height: 1.5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Header */
+        header {
+            background: linear-gradient(180deg, #162032 0%, var(--bg-surface) 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .brand-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 12px var(--primary-glow);
+            font-size: 1.1rem;
+        }
+        .brand h1 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            color: #fff;
+        }
+        .brand span {
+            font-size: 0.75rem;
+            color: var(--primary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-left: 0.25rem;
+        }
+
+        .header-badges {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+        }
+        .badge {
+            padding: 0.25rem 0.65rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: rgba(31, 41, 61, 0.8);
+            border: 1px solid var(--border);
+        }
+        .badge-sim {
+            background: rgba(139, 92, 246, 0.15);
+            border-color: var(--accent-purple);
+            color: #c4b5fd;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .badge-sim:hover {
+            background: rgba(139, 92, 246, 0.3);
+            box-shadow: 0 0 10px var(--purple-glow);
+        }
+        .badge-sim.active {
+            background: #8b5cf6;
+            color: #fff;
+            box-shadow: 0 0 12px var(--purple-glow);
+        }
+
+        /* Thermal Governor Badge & Alert Banner */
+        .badge-governor {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.4);
+            color: #34d399;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .badge-governor:hover {
+            filter: brightness(1.15);
+        }
+        .badge-governor.derated {
+            background: rgba(245, 158, 11, 0.22);
+            border-color: #f59e0b;
+            color: #fbbf24;
+            animation: pulse-governor 1.6s infinite;
+        }
+        .badge-governor.critical {
+            background: rgba(239, 68, 68, 0.25);
+            border-color: #ef4444;
+            color: #f87171;
+            animation: pulse-governor 0.8s infinite;
+        }
+        .badge-governor.disabled {
+            background: rgba(107, 114, 128, 0.18);
+            border-color: #4b5563;
+            color: #9ca3af;
+        }
+        @keyframes pulse-governor {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.35); }
+            50% { box-shadow: 0 0 10px 2px rgba(245, 158, 11, 0.65); }
+        }
+
+        .thermal-derate-banner {
+            background: linear-gradient(90deg, rgba(245, 158, 11, 0.18) 0%, rgba(239, 68, 68, 0.12) 100%);
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 0.65rem 1rem;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.15);
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        .derate-banner-content {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            flex: 1;
+        }
+        .derate-banner-icon {
+            font-size: 1.25rem;
+            line-height: 1;
+        }
+        .derate-banner-text {
+            font-size: 0.82rem;
+            color: #fef3c7;
+        }
+        .derate-banner-text strong {
+            color: #fbbf24;
+            margin-right: 0.35rem;
+        }
+        .btn-derate-dismiss {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            color: #fef3c7;
+            padding: 0.25rem 0.55rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-derate-dismiss:hover {
+            background: rgba(245, 158, 11, 0.3);
+            color: #fff;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .badge-pulse {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            background-color: var(--text-muted);
+            transition: all 0.15s ease;
+        }
+        .badge-pulse.active-rx {
+            background-color: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+        .badge-pulse.active-tx {
+            background-color: #06b6d4;
+            box-shadow: 0 0 8px #06b6d4;
+        }
+
+        .btn-settings {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: all 0.2s;
+        }
+        .btn-settings:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--primary);
+        }
+
+        /* Main Layout */
+        main {
+            flex: 1;
+            max-width: 1440px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        /* Charger Cards Grid */
+        .chargers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            gap: 1.25rem;
+        }
+
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.75rem;
+        }
+        .card-title {
+            font-size: 1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .card-tag {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            background: rgba(6, 182, 212, 0.15);
+            color: var(--primary);
+            font-family: var(--font-mono);
+        }
+
+        /* Metrics grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+        }
+        .metric-box {
+            background: var(--bg-card);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 0.65rem;
+            text-align: center;
+        }
+        .metric-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.2rem;
+        }
+        .metric-val {
+            font-size: 1.25rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: #fff;
+        }
+        .metric-val span {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-left: 0.15rem;
+        }
+
+        /* Fault Matrix */
+        .fault-matrix {
+            background: rgba(0,0,0,0.25);
+            border-radius: 8px;
+            padding: 0.65rem;
+            border: 1px solid var(--border);
+        }
+        .fault-matrix-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+        .fault-badges {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.4rem;
+        }
+        .fault-pill {
+            font-size: 0.65rem;
+            font-weight: 600;
+            padding: 0.25rem 0.35rem;
+            border-radius: 4px;
+            text-align: center;
+            background: #1e293b;
+            color: var(--text-muted);
+            border: 1px solid #334155;
+            transition: all 0.2s;
+        }
+        .fault-pill.active-fault {
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+            border-color: var(--danger);
+            animation: pulse-danger 1.5s infinite;
+        }
+        @keyframes pulse-danger {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            50% { box-shadow: 0 0 8px 2px rgba(239, 68, 68, 0.6); }
+        }
+
+        /* Chart Canvas Containers */
+        .chart-box {
+            position: relative;
+            background: #0f172a;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            padding: 0.5rem;
+            height: 180px;
+            width: 100%;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Simulator Card Special Styling */
+        .sim-card {
+            background: linear-gradient(180deg, #18152b 0%, var(--bg-surface) 100%);
+            border: 1px solid rgba(139, 92, 246, 0.35);
+            border-radius: 12px;
+            padding: 1.25rem;
+            box-shadow: 0 4px 20px rgba(139, 92, 246, 0.15);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .sim-card.disabled {
+            opacity: 0.65;
+            border-color: var(--border);
+            box-shadow: none;
+            background: var(--bg-surface);
+        }
+        .sim-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            border-bottom: 1px solid rgba(139, 92, 246, 0.25);
+            padding-bottom: 0.75rem;
+        }
+        .sim-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #c4b5fd;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .sim-toggle-switch {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            background: rgba(0, 0, 0, 0.35);
+            padding: 0.35rem 0.75rem;
+            border-radius: 9999px;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 22px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider-round {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #374151;
+            transition: .3s;
+            border-radius: 22px;
+        }
+        .slider-round:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        input:checked + .slider-round {
+            background-color: var(--accent-purple);
+        }
+        input:checked + .slider-round:before {
+            transform: translateX(18px);
+        }
+
+        .sim-presets-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        .btn-preset {
+            background: #1f223a;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            color: #e2e8f0;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            transition: all 0.2s;
+        }
+        .btn-preset:hover {
+            background: #312e58;
+            border-color: var(--accent-purple);
+            color: #fff;
+        }
+        .btn-preset.active {
+            background: var(--accent-purple);
+            border-color: #a78bfa;
+            color: #fff;
+            box-shadow: 0 0 10px var(--purple-glow);
+        }
+
+        .sim-tuners-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1rem;
+        }
+        .sim-tuner-box {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 8px;
+            padding: 0.85rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+        .sim-tuner-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #93c5fd;
+            display: flex;
+            justify-content: space-between;
+        }
+        .sim-slider-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+        }
+        .sim-slider-label {
+            width: 75px;
+            color: var(--text-muted);
+        }
+        .sim-slider {
+            flex: 1;
+            accent-color: var(--accent-purple);
+            cursor: pointer;
+        }
+        .sim-slider-val {
+            width: 50px;
+            text-align: right;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .sim-fault-triggers {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.35rem;
+            margin-top: 0.25rem;
+        }
+        .sim-fault-chip {
+            background: #1e293b;
+            border: 1px solid #334155;
+            padding: 0.25rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            cursor: pointer;
+            user-select: none;
+        }
+        .sim-fault-chip input { cursor: pointer; }
+        .sim-fault-chip.checked {
+            background: rgba(239, 68, 68, 0.25);
+            border-color: var(--danger);
+            color: #f87171;
+        }
+
+        /* Controls Section */
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.25rem;
+        }
+        .control-group-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .toggle-btn-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+        }
+        .btn-toggle {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 0.6rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.2s;
+        }
+        .btn-toggle:hover {
+            background: var(--bg-card-hover);
+        }
+        .btn-toggle.active {
+            background: rgba(6, 182, 212, 0.15);
+            border-color: var(--primary);
+            color: #38bdf8;
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .param-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .param-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            width: 130px;
+        }
+        .param-input {
+            flex: 1;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 0.4rem 0.6rem;
+            border-radius: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+        }
+        .param-input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+        .btn-apply {
+            background: var(--primary);
+            color: #0b0f19;
+            font-weight: 700;
+            border: none;
+            padding: 0.45rem 0.85rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.2s;
+        }
+        .btn-apply:hover {
+            filter: brightness(1.15);
+        }
+
+        .btn-momentary {
+            background: #1e293b;
+            border: 1px solid var(--border);
+            color: #93c5fd;
+            padding: 0.6rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .btn-momentary:hover {
+            background: #2563eb;
+            color: #fff;
+        }
+
+        /* Terminal Window */
+        .terminal-card {
+            background: #090d16;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .terminal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+        .terminal-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .terminal-body {
+            background: #030712;
+            border: 1px solid #1f2937;
+            border-radius: 6px;
+            height: 260px;
+            padding: 0.75rem;
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: #d1d5db;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .terminal-input-bar {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .terminal-input {
+            flex: 1;
+            background: #030712;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            color: #38bdf8;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+        }
+        .terminal-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* Modal styling */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            padding: 1rem;
+        }
+        .modal {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            max-height: 85vh;
+        }
+        .modal-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h3 {
+            font-size: 1.1rem;
+            color: #fff;
+        }
+        .modal-body {
+            padding: 1.25rem;
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: #e5e7eb;
+            white-space: pre-wrap;
+            background: #030712;
+        }
+        .modal-footer {
+            padding: 0.75rem 1.25rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Bar -->
+    <header>
+        <div class="brand">
+            <div class="brand-icon">⚡</div>
+            <div>
+                <h1>EVCC Gateway & Simulator <span>v3.0</span></h1>
+            </div>
+        </div>
+
+        <div class="header-badges">
+            <div class="badge badge-sim" id="badge-sim-status" onclick="toggleSimFromBadge()" title="Click to toggle between Simulator & Live USB Hardware">
+                <span>🧪 Simulation:</span>
+                <strong id="sim-status-label">DISABLED</strong>
+            </div>
+            <div class="badge" id="badge-state">State: <strong>INIT</strong></div>
+            <div class="badge" id="badge-j1772">J1772: <strong>DISCONNECTED</strong></div>
+            <div class="badge badge-governor" id="badge-governor" onclick="toggleGovernorFromBadge()" title="Closed-Loop Thermal Governor Status (Click to toggle)">
+                <span id="governor-icon">🛡️</span>
+                <span>Governor:</span>
+                <strong id="governor-status-label">OPTIMAL</strong>
+            </div>
+            <div class="badge" id="badge-serial" title="Serial Port Activity">
+                <span class="badge-pulse" id="pulse-led"></span>
+                <span id="serial-label">EVCC Serial</span>
+            </div>
+            <div class="badge" id="badge-ip">IP: <strong>192.168.4.1</strong></div>
+            <button class="btn-settings" onclick="openSettingsModal()">⚙️ Settings</button>
+        </div>
+    </header>
+
+    <main>
+        <!-- Thermal Derating Alert Banner -->
+        <div id="thermal-derate-banner" class="thermal-derate-banner" style="display: none;">
+            <div class="derate-banner-content">
+                <span class="derate-banner-icon">⚠️</span>
+                <div class="derate-banner-text">
+                    <strong>Thermal Governor Active:</strong>
+                    <span id="derate-banner-desc">Current throttled from 44.0A to 30.8A (-30%) because tsm2500_41 reached 58°C.</span>
+                </div>
+            </div>
+            <button class="btn-derate-dismiss" onclick="dismissDerateBanner()">Dismiss</button>
+        </div>
+
+        <!-- Dual Charger Telemetry & Live Histograms -->
+        <div class="chargers-grid">
+            <!-- Charger 1 Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span>⚡ Charger 1 (tsm2500)</span>
+                        <span class="card-tag">CAN ID 40 (0x28)</span>
+                    </div>
+                    <span class="badge" id="c1-status-badge">STANDBY</span>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <div class="metric-label">Voltage</div>
+                        <div class="metric-val" id="c1-v">0.0<span>V</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Current</div>
+                        <div class="metric-val" id="c1-a">0.0<span>A</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Power</div>
+                        <div class="metric-val" id="c1-w">0<span>W</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Energy</div>
+                        <div class="metric-val" id="c1-wh">0.0<span>Wh</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Temp</div>
+                        <div class="metric-val" id="c1-tmp">--<span>°C</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Link</div>
+                        <div class="metric-val" id="c1-link" style="color:var(--primary); font-size: 1rem; padding-top: 0.25rem;">ONLINE</div>
+                    </div>
+                </div>
+
+                <!-- Fault Matrix -->
+                <div class="fault-matrix">
+                    <div class="fault-matrix-title">TSM2500 Fault Status Matrix</div>
+                    <div class="fault-badges">
+                        <div class="fault-pill" id="c1-fault-rxerr">rxerr</div>
+                        <div class="fault-pill" id="c1-fault-hwfail">hwfail</div>
+                        <div class="fault-pill" id="c1-fault-overtemp">overtemp</div>
+                        <div class="fault-pill" id="c1-fault-not_charging">not charging</div>
+                        <div class="fault-pill" id="c1-fault-input_voltage_err">input volt err</div>
+                        <div class="fault-pill" id="c1-fault-pack_voltage_err">pack volt err</div>
+                    </div>
+                </div>
+
+                <!-- Live Histogram -->
+                <div class="chart-box">
+                    <canvas id="chart-c1"></canvas>
+                </div>
+            </div>
+
+            <!-- Charger 2 Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span>⚡ Charger 2 (tsm2500_41)</span>
+                        <span class="card-tag">CAN ID 41 (0x29)</span>
+                    </div>
+                    <span class="badge" id="c2-status-badge">STANDBY</span>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <div class="metric-label">Voltage</div>
+                        <div class="metric-val" id="c2-v">0.0<span>V</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Current</div>
+                        <div class="metric-val" id="c2-a">0.0<span>A</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Power</div>
+                        <div class="metric-val" id="c2-w">0<span>W</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Energy</div>
+                        <div class="metric-val" id="c2-wh">0.0<span>Wh</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Temp</div>
+                        <div class="metric-val" id="c2-tmp">--<span>°C</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Link</div>
+                        <div class="metric-val" id="c2-link" style="color:var(--primary); font-size: 1rem; padding-top: 0.25rem;">ONLINE</div>
+                    </div>
+                </div>
+
+                <!-- Fault Matrix -->
+                <div class="fault-matrix">
+                    <div class="fault-matrix-title">TSM2500_41 Fault Status Matrix</div>
+                    <div class="fault-badges">
+                        <div class="fault-pill" id="c2-fault-rxerr">rxerr</div>
+                        <div class="fault-pill" id="c2-fault-hwfail">hwfail</div>
+                        <div class="fault-pill" id="c2-fault-overtemp">overtemp</div>
+                        <div class="fault-pill" id="c2-fault-not_charging">not charging</div>
+                        <div class="fault-pill" id="c2-fault-input_voltage_err">input volt err</div>
+                        <div class="fault-pill" id="c2-fault-pack_voltage_err">pack volt err</div>
+                    </div>
+                </div>
+
+                <!-- Live Histogram -->
+                <div class="chart-box">
+                    <canvas id="chart-c2"></canvas>
+                </div>
+            </div>
+
+            <!-- Charger 3 Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span>⚡ Charger 3 (tsm2500_42)</span>
+                        <span class="card-tag">CAN ID 42 (0x2A)</span>
+                    </div>
+                    <span class="badge" id="c3-status-badge">STANDBY</span>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <div class="metric-label">Voltage</div>
+                        <div class="metric-val" id="c3-v">0.0<span>V</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Current</div>
+                        <div class="metric-val" id="c3-a">0.0<span>A</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Power</div>
+                        <div class="metric-val" id="c3-w">0<span>W</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Energy</div>
+                        <div class="metric-val" id="c3-wh">0.0<span>Wh</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Temp</div>
+                        <div class="metric-val" id="c3-tmp">--<span>°C</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Link</div>
+                        <div class="metric-val" id="c3-link" style="color:var(--primary); font-size: 1rem; padding-top: 0.25rem;">ONLINE</div>
+                    </div>
+                </div>
+
+                <!-- Fault Matrix -->
+                <div class="fault-matrix">
+                    <div class="fault-matrix-title">TSM2500_42 Fault Status Matrix</div>
+                    <div class="fault-badges">
+                        <div class="fault-pill" id="c3-fault-rxerr">rxerr</div>
+                        <div class="fault-pill" id="c3-fault-hwfail">hwfail</div>
+                        <div class="fault-pill" id="c3-fault-overtemp">overtemp</div>
+                        <div class="fault-pill" id="c3-fault-not_charging">not charging</div>
+                        <div class="fault-pill" id="c3-fault-input_voltage_err">input volt err</div>
+                        <div class="fault-pill" id="c3-fault-pack_voltage_err">pack volt err</div>
+                    </div>
+                </div>
+
+                <!-- Live Histogram -->
+                <div class="chart-box">
+                    <canvas id="chart-c3"></canvas>
+                </div>
+            </div>
+
+            <!-- Charger 4 Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span>⚡ Charger 4 (tsm2500_43)</span>
+                        <span class="card-tag">CAN ID 43 (0x2B)</span>
+                    </div>
+                    <span class="badge" id="c4-status-badge">STANDBY</span>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <div class="metric-label">Voltage</div>
+                        <div class="metric-val" id="c4-v">0.0<span>V</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Current</div>
+                        <div class="metric-val" id="c4-a">0.0<span>A</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Power</div>
+                        <div class="metric-val" id="c4-w">0<span>W</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Energy</div>
+                        <div class="metric-val" id="c4-wh">0.0<span>Wh</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Temp</div>
+                        <div class="metric-val" id="c4-tmp">--<span>°C</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Link</div>
+                        <div class="metric-val" id="c4-link" style="color:var(--primary); font-size: 1rem; padding-top: 0.25rem;">ONLINE</div>
+                    </div>
+                </div>
+
+                <!-- Fault Matrix -->
+                <div class="fault-matrix">
+                    <div class="fault-matrix-title">TSM2500_43 Fault Status Matrix</div>
+                    <div class="fault-badges">
+                        <div class="fault-pill" id="c4-fault-rxerr">rxerr</div>
+                        <div class="fault-pill" id="c4-fault-hwfail">hwfail</div>
+                        <div class="fault-pill" id="c4-fault-overtemp">overtemp</div>
+                        <div class="fault-pill" id="c4-fault-not_charging">not charging</div>
+                        <div class="fault-pill" id="c4-fault-input_voltage_err">input volt err</div>
+                        <div class="fault-pill" id="c4-fault-pack_voltage_err">pack volt err</div>
+                    </div>
+                </div>
+
+                <!-- Live Histogram -->
+                <div class="chart-box">
+                    <canvas id="chart-c4"></canvas>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- EVCC Simulation & Fault Injection Panel -->
+        <div class="sim-card disabled" id="sim-panel">
+            <div class="sim-header">
+                <div class="sim-title">
+                    <span>🧪 EVCC Protocol Simulator & Fault Injector</span>
+                </div>
+                <div class="sim-toggle-switch">
+                    <span style="font-size:0.75rem; font-weight:600; color:#c4b5fd;">Enable Simulation Engine:</span>
+                    <label class="switch">
+                        <input type="checkbox" id="chk-sim-enable" onchange="toggleSimEngine(this.checked)">
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Scenario Presets -->
+            <div>
+                <div class="control-group-title" style="color:#c4b5fd; margin-bottom:0.4rem;">Scenario Quick-Presets</div>
+                <div class="sim-presets-row">
+                    <button class="btn-preset active" id="sc-btn-0" onclick="selectPreset(0)">⚡ Dual Charge (18A ea)</button>
+                    <button class="btn-preset" id="sc-btn-1" onclick="selectPreset(1)">🔋 Single Charger</button>
+                    <button class="btn-preset" id="sc-btn-2" onclick="selectPreset(2)">📈 CV Tapering Phase</button>
+                    <button class="btn-preset" id="sc-btn-3" onclick="selectPreset(3)">🔥 Overtemp Fault</button>
+                    <button class="btn-preset" id="sc-btn-4" onclick="selectPreset(4)">📡 CAN RX Error</button>
+                    <button class="btn-preset" id="sc-btn-5" onclick="selectPreset(5)">⚡ Input Volt Err</button>
+                    <button class="btn-preset" id="sc-btn-6" onclick="selectPreset(6)">🛑 Pack Volt Err</button>
+                    <button class="btn-preset" id="sc-btn-7" onclick="selectPreset(7)">🔌 Standby Mode</button>
+                </div>
+            </div>
+
+            <!-- Interactive Tuners & Fault Overrides -->
+            <div class="sim-tuners-grid">
+                <!-- Charger 1 Sim Tuner -->
+                <div class="sim-tuner-box">
+                    <div class="sim-tuner-title">
+                        <span>⚡ Charger 1 Live Tuner (tsm2500)</span>
+                    </div>
+                    <div class="sim-slider-row">
+                        <span class="sim-slider-label">Voltage:</span>
+                        <input type="range" min="0" max="160" step="0.5" value="116.4" class="sim-slider" id="sim-c1-v" oninput="onSimSliderInput(1)">
+                        <span class="sim-slider-val" id="lbl-sim-c1-v">116.4V</span>
+                    </div>
+                    <div class="sim-slider-row">
+                        <span class="sim-slider-label">Current:</span>
+                        <input type="range" min="0" max="30" step="0.2" value="18.2" class="sim-slider" id="sim-c1-a" oninput="onSimSliderInput(1)">
+                        <span class="sim-slider-val" id="lbl-sim-c1-a">18.2A</span>
+                    </div>
+                    <div class="sim-slider-row">
+                        <span class="sim-slider-label">Temp:</span>
+                        <input type="range" min="10" max="90" step="1" value="38" class="sim-slider" id="sim-c1-tmp" oninput="onSimSliderInput(1)">
+                        <span class="sim-slider-val" id="lbl-sim-c1-tmp">38°C</span>
+                    </div>
+
+                    <div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.2rem;">Inject Faults into Charger 1:</div>
+                    <div class="sim-fault-triggers">
+                        <label class="sim-fault-chip" id="chip-c1-rxerr"><input type="checkbox" onchange="onSimFaultToggle(1, 'rxerr', this)"> rxerr</label>
+                        <label class="sim-fault-chip" id="chip-c1-hwfail"><input type="checkbox" onchange="onSimFaultToggle(1, 'hwfail', this)"> hwfail</label>
+                        <label class="sim-fault-chip" id="chip-c1-overtemp"><input type="checkbox" onchange="onSimFaultToggle(1, 'overtemp', this)"> overtemp</label>
+                        <label class="sim-fault-chip" id="chip-c1-not_charging"><input type="checkbox" onchange="onSimFaultToggle(1, 'not_charging', this)"> not charging</label>
+                        <label class="sim-fault-chip" id="chip-c1-input_voltage_err"><input type="checkbox" onchange="onSimFaultToggle(1, 'input_voltage_err', this)"> input volt err</label>
+                        <label class="sim-fault-chip" id="chip-c1-pack_voltage_err"><input type="checkbox" onchange="onSimFaultToggle(1, 'pack_voltage_err', this)"> pack volt err</label>
+                    </div>
+                </div>
+
+                <!-- Charger 2 Sim Tuner -->
+                <div class="sim-tuner-box">
+                    <div class="sim-tuner-title">
+                        <span>⚡ Charger 2 Live Tuner (tsm2500_41)</span>
+                    </div>
+                    <div class="sim-slider-row">
+                        <span class="sim-slider-label">Voltage:</span>
+                        <input type="range" min="0" max="160" step="0.5" value="116.5" class="sim-slider" id="sim-c2-v" oninput="onSimSliderInput(2)">
+                        <span class="sim-slider-val" id="lbl-sim-c2-v">116.5V</span>
+                    </div>
+                    <div class="sim-slider-row">
+                        <span class="sim-slider-label">Current:</span>
+                        <input type="range" min="0" max="30" step="0.2" value="18.0" class="sim-slider" id="sim-c2-a" oninput="onSimSliderInput(2)">
+                        <span class="sim-slider-val" id="lbl-sim-c2-a">18.0A</span>
+                    </div>
+                    <div class="sim-slider-row">
+                        <span class="sim-slider-label">Temp:</span>
+                        <input type="range" min="10" max="90" step="1" value="39" class="sim-slider" id="sim-c2-tmp" oninput="onSimSliderInput(2)">
+                        <span class="sim-slider-val" id="lbl-sim-c2-tmp">39°C</span>
+                    </div>
+
+                    <div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.2rem;">Inject Faults into Charger 2:</div>
+                    <div class="sim-fault-triggers">
+                        <label class="sim-fault-chip" id="chip-c2-rxerr"><input type="checkbox" onchange="onSimFaultToggle(2, 'rxerr', this)"> rxerr</label>
+                        <label class="sim-fault-chip" id="chip-c2-hwfail"><input type="checkbox" onchange="onSimFaultToggle(2, 'hwfail', this)"> hwfail</label>
+                        <label class="sim-fault-chip" id="chip-c2-overtemp"><input type="checkbox" onchange="onSimFaultToggle(2, 'overtemp', this)"> overtemp</label>
+                        <label class="sim-fault-chip" id="chip-c2-not_charging"><input type="checkbox" onchange="onSimFaultToggle(2, 'not_charging', this)"> not charging</label>
+                        <label class="sim-fault-chip" id="chip-c2-input_voltage_err"><input type="checkbox" onchange="onSimFaultToggle(2, 'input_voltage_err', this)"> input volt err</label>
+                        <label class="sim-fault-chip" id="chip-c2-pack_voltage_err"><input type="checkbox" onchange="onSimFaultToggle(2, 'pack_voltage_err', this)"> pack volt err</label>
+                    </div>
+                </div>
+
+                <!-- State & Manual Injector Box -->
+                <div class="sim-tuner-box">
+                    <div class="sim-tuner-title">
+                        <span>🎛️ System State & Direct Injector</span>
+                    </div>
+                    <div class="sim-slider-row">
+                        <span class="sim-slider-label">State:</span>
+                        <select class="param-input" id="sim-sys-state" onchange="onSimStateChange()">
+                            <option value="CHARGE">CHARGE</option>
+                            <option value="STANDBY">STANDBY</option>
+                            <option value="FINISH CHARGE">FINISH CHARGE</option>
+                            <option value="FLOAT CHARGE">FLOAT CHARGE</option>
+                            <option value="EVSE_WAIT">EVSE_WAIT</option>
+                            <option value="DRIVE">DRIVE</option>
+                            <option value="FAULT">FAULT</option>
+                        </select>
+                    </div>
+                    <div class="sim-slider-row">
+                        <span class="sim-slider-label">J1772:</span>
+                        <select class="param-input" id="sim-j1772-state" onchange="onSimStateChange()">
+                            <option value="LOCKED">LOCKED</option>
+                            <option value="CONNECTED">CONNECTED</option>
+                            <option value="DISCONNECTED">DISCONNECTED</option>
+                            <option value="WAITING FOR DISC">WAITING FOR DISC</option>
+                        </select>
+                    </div>
+
+                    <div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.3rem;">Direct ASCII Line Injector:</div>
+                    <div style="display:flex; gap:0.4rem;">
+                        <input type="text" class="param-input" id="sim-inject-input" placeholder="e.g. tsm2500: V=120.0, A=15.0, W=1800, TMP=45C">
+                        <button class="btn-apply" onclick="injectSimLine()">Inject</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Grid -->
+        <div class="controls-grid">
+            <!-- Trace Controls -->
+            <div class="card">
+                <div class="control-group-title">Trace Stream Controls</div>
+                <div class="toggle-btn-row">
+                    <button class="btn-toggle" id="btn-tr-can" onclick="toggleTrace('can')">
+                        <span>Trace CAN</span><span id="st-tr-can">OFF</span>
+                    </button>
+                    <button class="btn-toggle" id="btn-tr-state" onclick="toggleTrace('state')">
+                        <span>Trace State</span><span id="st-tr-state">OFF</span>
+                    </button>
+                    <button class="btn-toggle" id="btn-tr-charger" onclick="toggleTrace('charger')">
+                        <span>Trace Charger</span><span id="st-tr-charger">OFF</span>
+                    </button>
+                    <button class="btn-toggle" id="btn-tr-off" onclick="toggleTrace('off')">
+                        <span>Trace Off</span><span>⏹</span>
+                    </button>
+                </div>
+
+                <div class="control-group-title" style="margin-top:0.75rem;">Momentary Status Inspection</div>
+                <div class="toggle-btn-row">
+                    <button class="btn-momentary" onclick="requestMomentary('show')">🔍 Show Status</button>
+                    <button class="btn-momentary" onclick="requestMomentary('config')">📋 Show Config</button>
+                    <button class="btn-momentary" onclick="requestMomentary('history')">📜 Show History</button>
+                    <button class="btn-momentary" onclick="resetGraph()">🔄 Reset Graph</button>
+                </div>
+            </div>
+
+            <!-- Value Setting Fields -->
+            <div class="card">
+                <div class="control-group-title">Charge Parameter Settings</div>
+                <div class="param-row">
+                    <span class="param-label">Max Voltage (maxv):</span>
+                    <input type="number" step="0.1" class="param-input" id="inp-maxv" placeholder="e.g. 134.4">
+                    <button class="btn-apply" onclick="applyParam('maxv')">Set</button>
+                </div>
+                <div class="param-row">
+                    <span class="param-label">Max Current (maxc):</span>
+                    <input type="number" step="0.1" class="param-input" id="inp-maxc" placeholder="e.g. 20.0">
+                    <button class="btn-apply" onclick="applyParam('maxc')">Set</button>
+                </div>
+                <div class="param-row">
+                    <span class="param-label">Term Current (termc):</span>
+                    <input type="number" step="0.1" class="param-input" id="inp-termc" placeholder="e.g. 1.5">
+                    <button class="btn-apply" onclick="applyParam('termc')">Set</button>
+                </div>
+                <div class="param-row" style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.07); justify-content:space-between; align-items:center;">
+                    <div style="display:flex; flex-direction:column; gap:2px;">
+                        <span class="param-label" style="font-weight:600; color:var(--text-main);">🌡️ Auto Thermal Governor:</span>
+                        <span id="gov-param-info" style="font-size:0.72rem; color:var(--text-muted);">Active: 20.0A (100%) | Peak: --°C</span>
+                    </div>
+                    <label class="switch" style="margin:0;">
+                        <input type="checkbox" id="chk-governor-enable" checked onchange="toggleGovernor(this.checked)">
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">
+                    Parameters are sent to EVCC CLI with 1-decimal precision and stored in EEPROM.
+                </div>
+            </div>
+        </div>
+
+        <!-- Raw EVCC Terminal -->
+        <div class="terminal-card">
+            <div class="terminal-header">
+                <div class="terminal-title">
+                    <span>📟 EVCC Serial Data Stream (9600 Baud)</span>
+                </div>
+                <div style="display:flex; gap:0.5rem;">
+                    <button class="btn-settings" onclick="clearTerminal()">Clear</button>
+                    <button class="btn-settings" id="btn-autoscroll" onclick="toggleAutoScroll()">Auto-Scroll: ON</button>
+                </div>
+            </div>
+            <div class="terminal-body" id="term-log"></div>
+            <div class="terminal-input-bar">
+                <input type="text" class="terminal-input" id="term-input" placeholder="Type raw EVCC command (e.g. show, show config, help, set maxv 134.4)..." onkeydown="handleTerminalKey(event)">
+                <button class="btn-apply" onclick="sendTerminalCmd()">Send</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Query Response Modal -->
+    <div class="modal-backdrop" id="modal-query">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modal-query-title">EVCC Output</h3>
+                <button class="btn-settings" onclick="closeQueryModal()">✕</button>
+            </div>
+            <div class="modal-body" id="modal-query-content">Loading...</div>
+            <div class="modal-footer">
+                <button class="btn-apply" onclick="closeQueryModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-backdrop" id="modal-settings">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Gateway WiFi & IP Configuration</h3>
+                <button class="btn-settings" onclick="closeSettingsModal()">✕</button>
+            </div>
+            <div class="modal-body" style="white-space:normal;">
+                <div style="margin-bottom:1rem;">
+                    <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:0.25rem;">WiFi SSID (Network Name):</label>
+                    <input type="text" class="param-input" id="cfg-ssid" style="width:100%;">
+                </div>
+                <div style="margin-bottom:1rem;">
+                    <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:0.25rem;">WiFi Password:</label>
+                    <div style="display:flex; gap:0.4rem; align-items:center;">
+                        <input type="password" class="param-input" id="cfg-pass" style="flex:1;">
+                        <button type="button" class="btn-momentary" id="btn-toggle-pass" onclick="togglePasswordVisibility()" style="padding:0.45rem 0.75rem; font-size:0.8rem; white-space:nowrap; cursor:pointer;" title="Show/Hide Password">👁️ Show</button>
+                    </div>
+                </div>
+                <div style="margin-bottom:1rem;">
+                    <label style="font-size:0.8rem; font-weight:600; display:flex; align-items:center; gap:0.5rem;">
+                        <input type="checkbox" id="cfg-static" onchange="toggleStaticFields()"> Enable Static IP Configuration
+                    </label>
+                </div>
+                <div id="static-ip-fields" style="display:none; gap:0.75rem; flex-direction:column;">
+                    <div>
+                        <label style="font-size:0.75rem; color:var(--text-muted);">Static IP Address:</label>
+                        <input type="text" class="param-input" id="cfg-ip" placeholder="192.168.1.3" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; color:var(--text-muted);">Subnet Mask:</label>
+                        <input type="text" class="param-input" id="cfg-sn" placeholder="255.255.255.0" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; color:var(--text-muted);">Gateway:</label>
+                        <input type="text" class="param-input" id="cfg-gw" placeholder="192.168.1.1" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; color:var(--text-muted);">DNS Server:</label>
+                        <input type="text" class="param-input" id="cfg-dns" placeholder="192.168.1.1" style="width:100%;">
+                    </div>
+                </div>
+
+                <hr style="border-color:var(--border); margin:1.25rem 0;">
+
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <button class="btn-settings" style="border-color:var(--danger); color:#f87171;" onclick="resetWifiDefaults()">⚠️ Reset to AP Mode</button>
+                    <button class="btn-apply" onclick="saveWifiConfig()">Save & Connect</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        let ws;
+        let autoScroll = true;
+        let c1History = [];
+        let c2History = [];
+        let c3History = [];
+        let c4History = [];
+        let simEnabled = false;
+
+        function initWS() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+            ws.onopen = () => {
+                appendLog('[System] WebSocket connected to ESP32 Gateway.\n');
+            };
+
+            ws.onclose = () => {
+                appendLog('[System] WebSocket disconnected. Reconnecting in 2s...\n');
+                setTimeout(initWS, 2000);
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    handleWsMessage(msg);
+                } catch(e) {
+                    appendLog(event.data + '\n');
+                }
+            };
+        }
+
+        function handleWsMessage(msg) {
+            if (msg.type === 'raw') {
+                appendLog(msg.line + '\n');
+                triggerPulse(msg.isTx ? 'tx' : 'rx');
+            } else if (msg.type === 'telemetry') {
+                updateTelemetry(msg);
+            } else if (msg.type === 'query_resp') {
+                showQueryModal(msg.query, msg.text);
+            } else if (msg.type === 'history') {
+                loadHistoryData(msg.points);
+            }
+        }
+
+        function loadHistoryData(points) {
+            if (!points || !points.length) return;
+            c1History = [];
+            c2History = [];
+            c3History = [];
+            c4History = [];
+            points.forEach(pt => {
+                const t = Date.now() - (points[points.length - 1].t - pt.t) * 1000;
+                if (pt.v1 !== undefined) c1History.push({ t, v: pt.v1, a: pt.a1 });
+                if (pt.v2 !== undefined) c2History.push({ t, v: pt.v2, a: pt.a2 });
+                if (pt.v3 !== undefined) c3History.push({ t, v: pt.v3, a: pt.a3 });
+                if (pt.v4 !== undefined) c4History.push({ t, v: pt.v4, a: pt.a4 });
+            });
+            drawChart('chart-c1', c1History, '#06b6d4', '#10b981');
+            drawChart('chart-c2', c2History, '#38bdf8', '#10b981');
+            drawChart('chart-c3', c3History, '#818cf8', '#10b981');
+            drawChart('chart-c4', c4History, '#a78bfa', '#10b981');
+        }
+
+        function triggerPulse(type) {
+            const pulse = document.getElementById('pulse-led');
+            pulse.className = 'badge-pulse ' + (type === 'tx' ? 'active-tx' : 'active-rx');
+            setTimeout(() => { pulse.className = 'badge-pulse'; }, 120);
+        }
+
+        function updateTelemetry(data) {
+            // System State
+            if (data.state) {
+                document.getElementById('badge-state').innerHTML = `State: <strong>${data.state.state || 'UNKNOWN'}</strong>`;
+                document.getElementById('badge-j1772').innerHTML = `J1772: <strong>${data.state.j1772 || 'UNKNOWN'}</strong>`;
+            }
+            if (data.ip) {
+                document.getElementById('badge-ip').innerHTML = `IP: <strong>${data.ip}</strong>`;
+            }
+
+            // Simulation state sync
+            if (data.sim) {
+                syncSimulationUI(data.sim);
+            }
+
+            // Update 4 Chargers
+            const chargerDefs = [
+                { key: 'c1', chart: 'chart-c1', hist: c1History, vColor: '#06b6d4', aColor: '#10b981' },
+                { key: 'c2', chart: 'chart-c2', hist: c2History, vColor: '#38bdf8', aColor: '#10b981' },
+                { key: 'c3', chart: 'chart-c3', hist: c3History, vColor: '#818cf8', aColor: '#10b981' },
+                { key: 'c4', chart: 'chart-c4', hist: c4History, vColor: '#a78bfa', aColor: '#10b981' }
+            ];
+
+            chargerDefs.forEach(ch => {
+                const c = data[ch.key];
+                if (!c) return;
+
+                const vEl = document.getElementById(`${ch.key}-v`);
+                const aEl = document.getElementById(`${ch.key}-a`);
+                const wEl = document.getElementById(`${ch.key}-w`);
+                const whEl = document.getElementById(`${ch.key}-wh`);
+                const tmpEl = document.getElementById(`${ch.key}-tmp`);
+                const badgeEl = document.getElementById(`${ch.key}-status-badge`);
+
+                if (vEl) vEl.innerHTML = `${c.v.toFixed(1)}<span>V</span>`;
+                if (aEl) aEl.innerHTML = `${c.a.toFixed(1)}<span>A</span>`;
+                if (wEl) wEl.innerHTML = `${Math.round(c.w)}<span>W</span>`;
+                if (whEl) whEl.innerHTML = `${c.wh.toFixed(1)}<span>Wh</span>`;
+                if (tmpEl) {
+                    tmpEl.innerHTML = `${Math.round(c.tmp)}<span>°C</span>`;
+                    if (c.tmp >= 60) {
+                        tmpEl.style.color = '#ef4444';
+                    } else if (c.tmp >= 53) {
+                        tmpEl.style.color = '#f59e0b';
+                    } else {
+                        tmpEl.style.color = '';
+                    }
+                }
+                if (badgeEl) badgeEl.textContent = c.active ? 'CHARGING' : 'IDLE';
+
+                updateFaultPills(ch.key, c.faults);
+
+                // Add to history
+                if (c.active || c.v > 0) {
+                    ch.hist.push({ t: Date.now(), v: c.v, a: c.a });
+                    if (ch.hist.length > 150) ch.hist.shift();
+                    drawChart(ch.chart, ch.hist, ch.vColor, ch.aColor);
+                }
+            });
+
+            // Trace status buttons
+            if (data.traces) {
+                setBtnActive('btn-tr-can', 'st-tr-can', data.traces.can);
+                setBtnActive('btn-tr-state', 'st-tr-state', data.traces.state);
+                setBtnActive('btn-tr-charger', 'st-tr-charger', data.traces.charger);
+            }
+
+            // Governor status update
+            if (data.governor) {
+                updateGovernorUI(data.governor);
+            }
+        }
+
+
+        function updateFaultPills(prefix, faults) {
+            if (!faults) return;
+            const list = ['rxerr', 'hwfail', 'overtemp', 'not_charging', 'input_voltage_err', 'pack_voltage_err'];
+            list.forEach(key => {
+                const el = document.getElementById(`${prefix}-fault-${key}`);
+                if (el) {
+                    if (faults[key]) {
+                        el.classList.add('active-fault');
+                    } else {
+                        el.classList.remove('active-fault');
+                    }
+                }
+            });
+        }
+
+        function setBtnActive(btnId, stId, active) {
+            const btn = document.getElementById(btnId);
+            const st = document.getElementById(stId);
+            if (btn && st) {
+                if (active) {
+                    btn.classList.add('active');
+                    st.textContent = 'ON';
+                } else {
+                    btn.classList.remove('active');
+                    st.textContent = 'OFF';
+                }
+            }
+        }
+
+        function appendLog(text) {
+            const el = document.getElementById('term-log');
+            el.textContent += text;
+            if (autoScroll) {
+                el.scrollTop = el.scrollHeight;
+            }
+        }
+
+        function clearTerminal() {
+            document.getElementById('term-log').textContent = '';
+        }
+
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            document.getElementById('btn-autoscroll').textContent = `Auto-Scroll: ${autoScroll ? 'ON' : 'OFF'}`;
+        }
+
+        function toggleTrace(type) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: 'trace', trace: type }));
+            }
+        }
+
+        function requestMomentary(type) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                showQueryModal(type.toUpperCase(), 'Requesting output from EVCC...');
+                ws.send(JSON.stringify({ action: 'query', query: type }));
+            }
+        }
+
+        function applyParam(param) {
+            const inp = document.getElementById(`inp-${param}`);
+            const val = parseFloat(inp.value);
+            if (isNaN(val)) return alert('Please enter a valid numeric value.');
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: 'set_param', param: param, value: val }));
+                appendLog(`[Client] Sent: set ${param} ${val}\n`);
+            }
+        }
+
+        function sendTerminalCmd() {
+            const inp = document.getElementById('term-input');
+            const cmd = inp.value.trim();
+            if (!cmd) return;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: 'raw', command: cmd }));
+                inp.value = '';
+            }
+        }
+
+        function handleTerminalKey(e) {
+            if (e.key === 'Enter') sendTerminalCmd();
+        }
+
+        // ====================================================================
+        // Thermal Governor Controls & Telemetry
+        // ====================================================================
+        let bannerDismissed = false;
+
+        function updateGovernorUI(gov) {
+            if (!gov) return;
+
+            const badge = document.getElementById('badge-governor');
+            const icon = document.getElementById('governor-icon');
+            const label = document.getElementById('governor-status-label');
+            const chk = document.getElementById('chk-governor-enable');
+            const info = document.getElementById('gov-param-info');
+            const banner = document.getElementById('thermal-derate-banner');
+            const bannerDesc = document.getElementById('derate-banner-desc');
+
+            if (chk) chk.checked = gov.enabled;
+
+            if (!gov.enabled) {
+                if (badge) {
+                    badge.className = 'badge badge-governor disabled';
+                    if (icon) icon.textContent = '⚪';
+                    if (label) label.textContent = 'DISABLED';
+                    badge.title = 'Thermal Governor: Disabled (Click to enable)';
+                }
+                if (info) info.textContent = 'Disabled | Manual EVCC Control';
+                if (banner) banner.style.display = 'none';
+            } else if (gov.isDerated) {
+                if (badge) {
+                    badge.className = 'badge badge-governor ' + (gov.deratePercent <= 50 ? 'critical' : 'derated');
+                    if (icon) icon.textContent = '⚠️';
+                    if (label) label.textContent = `DERATED (${gov.deratePercent}%)`;
+                    badge.title = `Thermal Governor: ${gov.activeMaxc.toFixed(1)}A / ${gov.baselineMaxc.toFixed(1)}A (${gov.statusText})`;
+                }
+                if (info) {
+                    info.innerHTML = `<span style="color:#f59e0b; font-weight:600;">⚠️ ${gov.activeMaxc.toFixed(1)}A / ${gov.baselineMaxc.toFixed(1)}A (${gov.deratePercent}%)</span> | Peak: ${gov.peakTemp.toFixed(0)}°C (${gov.hottestCharger})`;
+                }
+                if (banner && !bannerDismissed) {
+                    banner.style.display = 'flex';
+                    if (bannerDesc) {
+                        bannerDesc.textContent = `Current throttled from ${gov.baselineMaxc.toFixed(1)}A to ${gov.activeMaxc.toFixed(1)}A (-${100 - gov.deratePercent}%) because ${gov.hottestCharger} reached ${gov.peakTemp.toFixed(0)}°C. (${gov.statusText})`;
+                    }
+                }
+            } else {
+                if (badge) {
+                    badge.className = 'badge badge-governor';
+                    if (icon) icon.textContent = '🛡️';
+                    if (label) label.textContent = 'OPTIMAL';
+                    badge.title = `Thermal Governor: Optimal (${gov.peakTemp.toFixed(0)}°C / Limit 53°C)`;
+                }
+                if (info) {
+                    info.textContent = `Active: ${gov.baselineMaxc.toFixed(1)}A (100%) | Peak: ${gov.peakTemp.toFixed(0)}°C (Optimal)`;
+                }
+                if (banner) banner.style.display = 'none';
+                bannerDismissed = false; // reset dismiss when back in optimal zone
+            }
+        }
+
+        function toggleGovernor(enabled) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: 'set_governor', enabled: enabled }));
+                appendLog(`[Governor] Set thermal governor: ${enabled ? 'ENABLED' : 'DISABLED'}\n`);
+            }
+        }
+
+        function toggleGovernorFromBadge() {
+            const chk = document.getElementById('chk-governor-enable');
+            if (chk) {
+                chk.checked = !chk.checked;
+                toggleGovernor(chk.checked);
+            }
+        }
+
+        function dismissDerateBanner() {
+            bannerDismissed = true;
+            const banner = document.getElementById('thermal-derate-banner');
+            if (banner) banner.style.display = 'none';
+        }
+
+        // ====================================================================
+        // Simulation Suite Functions
+        // ====================================================================
+        function toggleSimFromBadge() {
+            toggleSimEngine(!simEnabled);
+        }
+
+        function toggleSimEngine(enable) {
+            simEnabled = enable;
+            document.getElementById('chk-sim-enable').checked = enable;
+            const panel = document.getElementById('sim-panel');
+            const badge = document.getElementById('badge-sim-status');
+            const label = document.getElementById('sim-status-label');
+            const serialLabel = document.getElementById('serial-label');
+
+            if (enable) {
+                panel.classList.remove('disabled');
+                badge.classList.add('active');
+                label.textContent = 'ACTIVE';
+                serialLabel.textContent = 'Simulated EVCC';
+            } else {
+                panel.classList.add('disabled');
+                badge.classList.remove('active');
+                label.textContent = 'DISABLED';
+                serialLabel.textContent = 'EVCC Serial';
+            }
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: 'sim_toggle', enabled: enable }));
+            }
+        }
+
+        function syncSimulationUI(sim) {
+            simEnabled = sim.enabled;
+            document.getElementById('chk-sim-enable').checked = sim.enabled;
+            const panel = document.getElementById('sim-panel');
+            const badge = document.getElementById('badge-sim-status');
+            const label = document.getElementById('sim-status-label');
+            const serialLabel = document.getElementById('serial-label');
+
+            if (sim.enabled) {
+                panel.classList.remove('disabled');
+                badge.classList.add('active');
+                label.textContent = 'ACTIVE';
+                serialLabel.textContent = 'Simulated EVCC';
+            } else {
+                panel.classList.add('disabled');
+                badge.classList.remove('active');
+                label.textContent = 'DISABLED';
+                serialLabel.textContent = 'EVCC Serial';
+            }
+
+            // Sync preset active button
+            for (let i = 0; i <= 7; i++) {
+                const btn = document.getElementById(`sc-btn-${i}`);
+                if (btn) {
+                    if (sim.scenario === i) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                }
+            }
+        }
+
+        function selectPreset(index) {
+            for (let i = 0; i <= 7; i++) {
+                const btn = document.getElementById(`sc-btn-${i}`);
+                if (btn) btn.classList.remove('active');
+            }
+            const activeBtn = document.getElementById(`sc-btn-${index}`);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: 'sim_preset', scenario: index }));
+            }
+        }
+
+        function onSimSliderInput(ch) {
+            const prefix = ch === 1 ? 'c1' : 'c2';
+            const v = parseFloat(document.getElementById(`sim-${prefix}-v`).value);
+            const a = parseFloat(document.getElementById(`sim-${prefix}-a`).value);
+            const tmp = parseFloat(document.getElementById(`sim-${prefix}-tmp`).value);
+
+            document.getElementById(`lbl-sim-${prefix}-v`).textContent = `${v.toFixed(1)}V`;
+            document.getElementById(`lbl-sim-${prefix}-a`).textContent = `${a.toFixed(1)}A`;
+            document.getElementById(`lbl-sim-${prefix}-tmp`).textContent = `${Math.round(tmp)}°C`;
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: 'sim_values', charger: ch, v: v, a: a, tmp: tmp }));
+            }
+        }
+
+        function onSimFaultToggle(ch, faultKey, checkbox) {
+            const prefix = ch === 1 ? 'c1' : 'c2';
+            const chip = document.getElementById(`chip-${prefix}-${faultKey}`);
+            if (checkbox.checked) {
+                chip.classList.add('checked');
+            } else {
+                chip.classList.remove('checked');
+            }
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: 'sim_fault', charger: ch, fault: faultKey, value: checkbox.checked }));
+            }
+        }
+
+        function onSimStateChange() {
+            const st = document.getElementById('sim-sys-state').value;
+            const j1772 = document.getElementById('sim-j1772-state').value;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: 'sim_state', state: st, j1772: j1772 }));
+            }
+        }
+
+        function injectSimLine() {
+            const inp = document.getElementById('sim-inject-input');
+            const line = inp.value.trim();
+            if (!line) return;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: 'sim_inject', line: line }));
+                appendLog(`[Sim Injected] ${line}\n`);
+                inp.value = '';
+            }
+        }
+
+        // Live Dual-Axis Canvas Chart Rendering (Voltage 128V to 150V)
+        function drawChart(canvasId, data, colorV, colorA) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width = canvas.parentElement.clientWidth;
+            const height = canvas.height = canvas.parentElement.clientHeight;
+
+            ctx.clearRect(0, 0, width, height);
+
+            if (data.length < 2) {
+                ctx.fillStyle = '#64748b';
+                ctx.font = '11px sans-serif';
+                ctx.fillText('Awaiting live charge telemetry data...', 15, height / 2);
+                return;
+            }
+
+            const padL = 48, padR = 42, padT = 18, padB = 20;
+            const plotW = width - padL - padR;
+            const plotH = height - padT - padB;
+
+            // Fixed voltage bounds: 128V min to 150V max
+            const minV = 128.0;
+            const maxV = 150.0;
+
+            // Compute current bounds
+            let minA = 0.0, maxA = 5.0;
+            data.forEach(p => {
+                if (p.a > maxA) maxA = p.a;
+            });
+            maxA = Math.max(Math.ceil(maxA * 1.2), 5);
+
+            // Draw grid lines
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const frac = 1.0 - (i / 4.0);
+                const y = padT + (plotH / 4) * i;
+                ctx.beginPath();
+                ctx.moveTo(padL, y);
+                ctx.lineTo(width - padR, y);
+                ctx.stroke();
+
+                // Y-labels (Voltage: 150.0V, 144.5V, 139.0V, 133.5V, 128.0V)
+                ctx.fillStyle = colorV;
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'right';
+                const vVal = (minV + (maxV - minV) * frac).toFixed(1);
+                ctx.fillText(`${vVal}V`, padL - 5, y + 3);
+
+                // Current Y-labels (Right Axis)
+                ctx.fillStyle = colorA;
+                ctx.textAlign = 'left';
+                const aVal = (minA + (maxA - minA) * frac).toFixed(1);
+                ctx.fillText(`${aVal}A`, width - padR + 5, y + 3);
+            }
+
+            // Draw Voltage Line (colorV)
+            ctx.beginPath();
+            ctx.strokeStyle = colorV;
+            ctx.lineWidth = 2;
+            data.forEach((p, idx) => {
+                const x = padL + (idx / (data.length - 1)) * plotW;
+                const vClamped = Math.max(minV, Math.min(maxV, p.v));
+                const y = padT + plotH - ((vClamped - minV) / (maxV - minV)) * plotH;
+                if (idx === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Draw Current Line (colorA)
+            ctx.beginPath();
+            ctx.strokeStyle = colorA;
+            ctx.lineWidth = 2;
+            data.forEach((p, idx) => {
+                const x = padL + (idx / (data.length - 1)) * plotW;
+                const aClamped = Math.max(minA, Math.min(maxA, p.a));
+                const y = padT + plotH - ((aClamped - minA) / (maxA - minA)) * plotH;
+                if (idx === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Legend
+            ctx.fillStyle = colorV;
+            ctx.textAlign = 'left';
+            ctx.fillText('— Voltage (128-150V)', padL + 10, padT - 5);
+            ctx.fillStyle = colorA;
+            ctx.fillText('— Current (A)', padL + 150, padT - 5);
+        }
+
+        function resetGraph() {
+            c1History = [];
+            c2History = [];
+            drawChart('chart-c1', [], '#06b6d4', '#10b981');
+            drawChart('chart-c2', [], '#38bdf8', '#10b981');
+        }
+
+        function showQueryModal(title, text) {
+            document.getElementById('modal-query-title').textContent = `EVCC: ${title}`;
+            document.getElementById('modal-query-content').textContent = text;
+            document.getElementById('modal-query').style.display = 'flex';
+        }
+
+        function closeQueryModal() {
+            document.getElementById('modal-query').style.display = 'none';
+        }
+
+        function togglePasswordVisibility() {
+            const passInput = document.getElementById('cfg-pass');
+            const toggleBtn = document.getElementById('btn-toggle-pass');
+            if (passInput.type === 'password') {
+                passInput.type = 'text';
+                toggleBtn.innerHTML = '🙈 Hide';
+            } else {
+                passInput.type = 'password';
+                toggleBtn.innerHTML = '👁️ Show';
+            }
+        }
+
+        function openSettingsModal() {
+            const passInput = document.getElementById('cfg-pass');
+            const toggleBtn = document.getElementById('btn-toggle-pass');
+            passInput.type = 'password';
+            toggleBtn.innerHTML = '👁️ Show';
+
+            fetch('/api/config')
+                .then(r => r.json())
+                .then(cfg => {
+                    if (cfg.ssid) document.getElementById('cfg-ssid').value = cfg.ssid;
+                    if (cfg.static !== undefined) document.getElementById('cfg-static').checked = cfg.static;
+                    if (cfg.ip && cfg.ip !== '0.0.0.0') document.getElementById('cfg-ip').value = cfg.ip;
+                    if (cfg.sn && cfg.sn !== '0.0.0.0') document.getElementById('cfg-sn').value = cfg.sn;
+                    if (cfg.gw && cfg.gw !== '0.0.0.0') document.getElementById('cfg-gw').value = cfg.gw;
+                    if (cfg.dns && cfg.dns !== '0.0.0.0') document.getElementById('cfg-dns').value = cfg.dns;
+                    if (cfg.pass) {
+                        passInput.value = cfg.pass;
+                        passInput.placeholder = '';
+                    } else {
+                        passInput.value = '';
+                        passInput.placeholder = '(leave blank to keep current)';
+                    }
+                    toggleStaticFields();
+                })
+                .catch(() => {});
+            document.getElementById('modal-settings').style.display = 'flex';
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('modal-settings').style.display = 'none';
+        }
+
+        function toggleStaticFields() {
+            const isStatic = document.getElementById('cfg-static').checked;
+            document.getElementById('static-ip-fields').style.display = isStatic ? 'flex' : 'none';
+        }
+
+        function saveWifiConfig() {
+            const isStatic = document.getElementById('cfg-static').checked;
+            const ipVal = document.getElementById('cfg-ip').value.trim();
+            let snVal = document.getElementById('cfg-sn').value.trim();
+            let gwVal = document.getElementById('cfg-gw').value.trim();
+            let dnsVal = document.getElementById('cfg-dns').value.trim();
+
+            if (isStatic) {
+                if (!snVal) snVal = '255.255.255.0';
+                if (!gwVal && ipVal) {
+                    const parts = ipVal.split('.');
+                    if (parts.length === 4) gwVal = parts[0] + '.' + parts[1] + '.' + parts[2] + '.1';
+                }
+                if (!dnsVal) dnsVal = gwVal || '192.168.1.1';
+            }
+
+            const cfg = {
+                ssid: document.getElementById('cfg-ssid').value.trim(),
+                pass: document.getElementById('cfg-pass').value,
+                static: isStatic,
+                ip: ipVal,
+                sn: snVal,
+                gw: gwVal,
+                dns: dnsVal
+            };
+            fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(cfg)
+            }).then(r => r.json()).then(res => {
+                alert(res.message || 'Settings saved! ESP32 is reconnecting...');
+                closeSettingsModal();
+            }).catch(e => {
+                alert('Saved! ESP32 is reconnecting...');
+                closeSettingsModal();
+            });
+        }
+
+        function resetWifiDefaults() {
+            if (confirm('Reset WiFi settings and restore Access Point mode?')) {
+                fetch('/api/wifi/reset', { method: 'POST' }).then(() => {
+                    alert('Gateway reset to SoftAP mode (EVCC-Gateway-AP).');
+                    location.reload();
+                });
+            }
+        }
+
+        window.onload = () => {
+            initWS();
+            resetGraph();
+        };
+    </script>
+</body>
+</html>

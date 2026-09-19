@@ -382,6 +382,34 @@ To ensure field testing in vehicles and basements can be diagnosed without a liv
 
 ---
 
+## 📱 Companion Android App: Thunderstruck EV Charger Monitor
+
+In addition to the onboard web dashboard, a standalone, generic Android companion application is available:
+👉 **[Android Thunderstruck EV Charger Monitor](file:///Z:/Personal/Mike/AndroidDevelopment/Android%20Thunderstruck%20EV%20Charger%20Monitor/README.md)** *(Standalone Repository)*
+
+### Highlights & Features:
+- **Zero-Configuration Network Auto-Discovery**:
+  - Automatically discovers the ESP32 Gateway via the 1 Hz UDP broadcast beacon on port `8888`.
+  - Instant WebSocket connection with active 4-second watchdog and real-time **Online / Offline** status.
+- **Dedicated Dual Charger Telemetry**:
+  - Live gauges for Voltage, Current, Power (W), Session Energy (Wh), and Temperature (°C) for **Charger 1 (`tsm2500`, 0x40)** and **Charger 2 (`tsm2500_41`, 0x41)**.
+  - Hardware fault pills: `rxerr`, `hwfail`, `overtemp`, `not chg`, `input err`, and `pack err`.
+  - Dynamically adapts between single-charger and dual-charger card views based on CAN activity.
+- **Dynamic Dual-Axis Charging Session Graphs**:
+  - Synchronous overlay of Voltage (violet) and Current (green) with automatic dual-axis scaling.
+- **Multi-Zone Temperature History Chart**:
+  - Visual tracking with safety warning lines for **53°C Derate** and **64°C Emergency Trip**.
+- **Intelligent Thermal Governor Controls**:
+  - Live throttling feedback (`🛡️ Gov: OPTIMAL`, `⚠️ Gov: 75%`, `⚪ Gov: OFF`) to prevent charger thermal shutdown.
+- **Bidirectional EVCC Serial Terminal**:
+  - Direct 9600 baud ASCII console with quick buttons (`SHOW`, `CONFIG`, `HISTORY`), trace toggles (`TR CAN`, `TR STATE`, `TR CHG`, `TR OFF`), and live parameter tuning (`maxv`, `maxc`).
+- **Integrated Offline Simulator Engine**:
+  - Built-in test harness with 8 realistic presets (`Dual Chg`, `Single Chg`, `CV Taper`, `Overtemp`, `CAN Rxerr`, `Input Err`, `Pack Err`, `Standby`) and interactive sliders for bench testing without vehicle hardware.
+- **Automotive Dashboard Ready**:
+  - Dark-mode responsive design tailored for in-vehicle Android head units and tablets (1920x1200, 1280x800) with edge-to-edge layout and zero vertical scrolling.
+
+---
+
 ## Building and Flashing
 
 This project is built using [PlatformIO](https://platformio.org/).

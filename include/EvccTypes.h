@@ -93,7 +93,7 @@ struct EvccSystemState {
 struct ThermalGovernorStatus {
     bool enabled            = true;    // User toggleable via UI or API
     bool isDerated          = false;   // True if activeMaxc < baselineMaxc
-    float baselineMaxc      = 0.0f;    // User-configured baseline target (e.g. 40.0A or 44.0A)
+    float baselineMaxc      = 0.0f;    // User-configured baseline target (up to 80.0A for 4 chargers)
     float activeMaxc        = 0.0f;    // Active commanded setpoint after thermal derate
     float deratePercent     = 0.0f;    // Current reduction percentage (e.g. 30.0%)
     float peakTemp          = 0.0f;    // Highest charger heatsink temperature currently observed

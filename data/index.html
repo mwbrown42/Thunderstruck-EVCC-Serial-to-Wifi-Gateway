@@ -808,7 +808,7 @@
                 <span class="derate-banner-icon">⚠️</span>
                 <div class="derate-banner-text">
                     <strong>Thermal Governor Active:</strong>
-                    <span id="derate-banner-desc">Current throttled from 44.0A to 30.8A (-30%) because tsm2500_41 reached 58°C.</span>
+                    <span id="derate-banner-desc">Current throttled from 80.0A to 56.0A (-30%) because tsm2500_41 reached 56°C.</span>
                 </div>
             </div>
             <button class="btn-derate-dismiss" onclick="dismissDerateBanner()">Dismiss</button>
@@ -1213,7 +1213,7 @@
                 </div>
                 <div class="param-row">
                     <span class="param-label">Max Current (maxc):</span>
-                    <input type="number" step="0.1" class="param-input" id="inp-maxc" placeholder="e.g. 20.0">
+                    <input type="number" step="0.1" class="param-input" id="inp-maxc" placeholder="e.g. 80.0">
                     <button class="btn-apply" onclick="applyParam('maxc')">Set</button>
                 </div>
                 <div class="param-row">
@@ -1436,7 +1436,7 @@
                     tmpEl.innerHTML = `${Math.round(c.tmp)}<span>°C</span>`;
                     if (c.tmp >= 60) {
                         tmpEl.style.color = '#ef4444';
-                    } else if (c.tmp >= 53) {
+                    } else if (c.tmp >= 50) {
                         tmpEl.style.color = '#f59e0b';
                     } else {
                         tmpEl.style.color = '';
@@ -1599,7 +1599,7 @@
                     badge.className = 'badge badge-governor';
                     if (icon) icon.textContent = '🛡️';
                     if (label) label.textContent = 'OPTIMAL';
-                    badge.title = `Thermal Governor: Optimal (${gov.peakTemp.toFixed(0)}°C / Limit 53°C)`;
+                    badge.title = `Thermal Governor: Optimal (${gov.peakTemp.toFixed(0)}°C / Limit 50°C)`;
                 }
                 if (info) {
                     info.textContent = `Active: ${gov.baselineMaxc.toFixed(1)}A (100%) | Peak: ${gov.peakTemp.toFixed(0)}°C (Optimal)`;

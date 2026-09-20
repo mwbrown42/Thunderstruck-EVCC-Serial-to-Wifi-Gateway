@@ -5,7 +5,8 @@
 #include "Config.h"
 
 enum SimScenario {
-    SIM_DUAL_CHARGE = 0,
+    SIM_QUAD_CHARGE = 0,
+    SIM_DUAL_CHARGE,
     SIM_SINGLE_CHARGE,
     SIM_TAPERING,
     SIM_OVERTEMP_FAULT,

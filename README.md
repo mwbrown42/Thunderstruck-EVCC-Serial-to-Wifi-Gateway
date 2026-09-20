@@ -61,7 +61,7 @@ This project turns an inexpensive **ESP32-S3** board into an intelligent gateway
   - Closed-loop dynamic current throttling based on real-time charger temperatures.
   - **4°C Hysteresis Guard** prevents continuous oscillating around trip thresholds.
   - **90-Second Dwell Stabilization Timer** ensures charger hardware thermally settles before current is restored.
-  - Clear state reporting: `OPTIMAL`, `DERATE (53°C)`, `TRIP (64°C)`.
+  - Clear state reporting: `OPTIMAL`, `DERATE (50°C)`, `TRIP (60°C)`.
 - **Subnet UDP Broadcast (Port 8888)**:
   - Continuous 1-second JSON telemetry broadcast on `255.255.255.255:8888`.
   - Zero-configuration auto-discovery: Client dashboards (tablets, car PCs) discover the gateway IP dynamically without manual IP entry.
@@ -211,19 +211,19 @@ The **Thermal Governor** protects dual or quad TSM-2500 chargers from thermal de
                                 │
           ┌─────────────────────┼─────────────────────┐
           ▼                     ▼                     ▼
-     < 49°C                53°C - 63°C             >= 64°C
+     <= 47°C               50°C - 59°C             >= 60°C
   [  OPTIMAL  ]         [ DERATE STAGE ]        [ TRIP / STOP ]
-   100% Current           Reduced Current          0A Cutoff
-   (90s Dwell)            (4°C Hysteresis)         Shutdown
+   100% Current          Graduated Derate          0A Cutoff
+   (90s Dwell)           (3°C Hysteresis)        EVCC Shutdown
 ```
 
 ### Dynamic Current Throttling
-- **Normal (< 53°C)**: 100% user-configured charging current (`maxc`, e.g. 40.0A total / 20.0A per charger).
-- **Derate (53°C - 63°C)**: Automatically throttles current back to 50% (`20.0A` total / `10.0A` per charger) to arrest temperature rise while continuing the session.
-- **Trip (>= 64°C)**: Immediate emergency cutoff (`0A`). Charging is suspended until chargers cool down safely.
+- **Normal (< 50°C)**: 100% user-configured charging current (`maxc`, up to **80.0A** total / **20.0A** per charger for a full 4-charger system).
+- **Derate (50°C - 59°C)**: Automatically throttles current in graduated stages (85%, 70%, 50%, 30% emergency floor) to arrest heatsink temperature rise while safely sustaining the charging session.
+- **Trip (>= 60°C)**: Immediate hard trip cutoff (`0A`). The EVCC hardware trips charging at 60°C to protect electronics. Charging is suspended until chargers cool down safely.
 
-### 4°C Hysteresis Guard
-Prevents rapid chatter around the trip boundary. If the governor enters derate at 53°C, temperature must fall below **49°C** before the governor permits restoring full current.
+### 3°C Hysteresis Guard
+Prevents rapid chatter around the trip boundary. If the governor enters derate at 50°C, heatsinks must cool down to **<= 47°C** before the governor permits stepping back up to 100% current.
 
 ### 90-Second Dwell Stabilization Timer
 When temperature returns to the safe zone, the governor enforces a **90-second dwell period** at the reduced current rate. This guarantees thermal inertia inside the charger casing has dissipated before stepping current back up.
@@ -246,7 +246,7 @@ To eliminate brittle static IP configurations and port numbers on companion dash
   "j1772": "LOCKED",
   "governor": {
     "state": "OPTIMAL",
-    "activeCurrent": 40.0,
+    "activeCurrent": 80.0,
     "maxTemp": 38.5,
     "dwellRemainingSec": 0
   },
@@ -254,9 +254,9 @@ To eliminate brittle static IP configurations and port numbers on companion dash
     {
       "id": 40,
       "name": "tsm2500",
-      "voltage": 112.4,
-      "current": 19.8,
-      "power": 2225,
+      "voltage": 142.6,
+      "current": 20.0,
+      "power": 2852,
       "energyWh": 1450,
       "temp": 38.5,
       "status": "charging",
@@ -265,11 +265,33 @@ To eliminate brittle static IP configurations and port numbers on companion dash
     {
       "id": 41,
       "name": "tsm2500_41",
-      "voltage": 112.3,
-      "current": 19.7,
-      "power": 2212,
+      "voltage": 142.6,
+      "current": 20.0,
+      "power": 2852,
       "energyWh": 1440,
-      "temp": 37.0,
+      "temp": 39.7,
+      "status": "charging",
+      "faults": []
+    },
+    {
+      "id": 42,
+      "name": "tsm2500_42",
+      "voltage": 142.6,
+      "current": 20.0,
+      "power": 2852,
+      "energyWh": 1435,
+      "temp": 41.2,
+      "status": "charging",
+      "faults": []
+    },
+    {
+      "id": 43,
+      "name": "tsm2500_43",
+      "voltage": 142.6,
+      "current": 20.0,
+      "power": 2852,
+      "energyWh": 1430,
+      "temp": 42.7,
       "status": "charging",
       "faults": []
     }
@@ -281,22 +303,24 @@ Client applications listen on UDP port 8888. The incoming UDP packet address dyn
 
 ---
 
-## Android Dashboard Integration
+## 📱 Standalone Android App: Android Thunderstruck EV Charger Monitor
 
-This gateway pairs natively with the **Porsche 914 EV Android Dashboard** tablet app via its dedicated **CHARGING** tab:
+This gateway pairs natively with the standalone companion application:
+👉 **[Android Thunderstruck EV Charger Monitor](file:///Z:/Personal/Mike/AndroidDevelopment/Android%20Thunderstruck%20EV%20Charger%20Monitor/README.md)** *(Standalone Repository / Package: `com.mikeland.thunderstruck.evcc.monitor`)*
+*(Local Workspace: `Z:\Personal\Mike\AndroidDevelopment\Android Thunderstruck EV Charger Monitor`)*
 
 <p align="center">
-  <img src="docs/images/charging_tab_screen.png" alt="Porsche 914 EV Dashboard Charging Tab" width="600">
+  <img src="docs/images/charging_tab_screen.png" alt="Android Thunderstruck EV Charger Monitor" width="700">
   <br>
-  <em>Figure 2: Custom Android Dashboard Charging Screen with live dual charger metrics, histograms, and thermal tracking</em>
+  <em>Figure 2: Standalone Android Tablet Monitor showing 4 chargers active in real-time with dual-axis charts and thermal governor tracking</em>
 </p>
 
-- **Top Status Bar**: Live state badge, J1772 lock indicator, online/offline status, thermal governor mode, and session timer.
-- **Dual Charger Telemetry**: Dedicated live cards for Charger 1 (CAN ID 40) and Charger 2 (CAN ID 41) displaying Volts, Amps, Power, Energy, and Temp.
-- **Session Histograms**: Auto-scaling Voltage and Current overlay graphs.
-- **Temperature History Chart**: Dynamic graph plotting charger thermals with visual derate (`53°C`) and trip (`64°C`) guideline thresholds.
-- **Interactive Simulator Harness**: Built-in test harness with scenario presets (`Dual Chg`, `Single Chg`, `CV Taper`, `Overtemp`, `CAN RxErr`, `Input Err`, `Pack Err`) to test dashboard logic without connecting to the high-voltage pack.
-- **Parameters & Traces**: Remote in-app toggles for `Trace CAN`, `Trace State`, `Trace Charger`, and instant setting of `maxv`, `maxc`, `termc`.
+- **Dynamic 1 to 4 Charger Support**: Automatically displays 1, 2, 3, or 4 chargers (`charger1` to `charger4`, CAN IDs 40..43) side-by-side with responsive width scaling and zero vertical scrolling.
+- **High-Power 80A Charging Support**: Handles up to **80.0A** aggregate charging current (4x 20.0A TSM-2500 units) with real-time total kilowatt and amperage calculation.
+- **Dual-Axis Charging Histograms**: Overlays Voltage (violet) and Current (green) scaled dynamically per charger.
+- **Multi-Zone Temperature History Chart**: Live thermal traces for all 4 chargers with explicit **50°C DERATE** warning and **60°C TRIP** safety lines.
+- **Interactive Offline Simulator Engine**: Bench-test all scenarios with 8 one-tap presets (`4 Chg`, `2 Chg`, `1 Chg`, `CV Taper`, `Overtemp`, `CAN RxErr`, `Volt Err`, `Standby`) and live voltage/current sliders.
+- **Serial Terminal & Trace Controls**: Live 9600 baud EVCC console with quick queries (`SHOW`, `CONFIG`, `HISTORY`), trace toggles (`TR CAN`, `TR STATE`, `TR CHG`, `TR OFF`), and setpoint adjustments (`maxv`, `maxc`).
 
 ---
 
@@ -391,20 +415,20 @@ In addition to the onboard web dashboard, a standalone, generic Android companio
 - **Zero-Configuration Network Auto-Discovery**:
   - Automatically discovers the ESP32 Gateway via the 1 Hz UDP broadcast beacon on port `8888`.
   - Instant WebSocket connection with active 4-second watchdog and real-time **Online / Offline** status.
-- **Dedicated Dual Charger Telemetry**:
-  - Live gauges for Voltage, Current, Power (W), Session Energy (Wh), and Temperature (°C) for **Charger 1 (`tsm2500`, 0x40)** and **Charger 2 (`tsm2500_41`, 0x41)**.
+- **Dedicated 1 to 4 Charger Telemetry**:
+  - Live gauges for Voltage, Current, Power (W), Session Energy (Wh), and Temperature (°C) for **Charger 1 (`tsm2500`, 0x40)**, **Charger 2 (`tsm2500_41`, 0x41)**, **Charger 3 (`tsm2500_42`, 0x42)**, and **Charger 4 (`tsm2500_43`, 0x43)**.
   - Hardware fault pills: `rxerr`, `hwfail`, `overtemp`, `not chg`, `input err`, and `pack err`.
-  - Dynamically adapts between single-charger and dual-charger card views based on CAN activity.
+  - Dynamically adapts across 1, 2, 3, or 4 charger card views based on active CAN telemetry with automatic equal-width flex layout.
 - **Dynamic Dual-Axis Charging Session Graphs**:
   - Synchronous overlay of Voltage (violet) and Current (green) with automatic dual-axis scaling.
 - **Multi-Zone Temperature History Chart**:
-  - Visual tracking with safety warning lines for **53°C Derate** and **64°C Emergency Trip**.
+  - Visual tracking with safety warning lines for **50°C Derate** and **60°C Emergency Trip**.
 - **Intelligent Thermal Governor Controls**:
   - Live throttling feedback (`🛡️ Gov: OPTIMAL`, `⚠️ Gov: 75%`, `⚪ Gov: OFF`) to prevent charger thermal shutdown.
 - **Bidirectional EVCC Serial Terminal**:
-  - Direct 9600 baud ASCII console with quick buttons (`SHOW`, `CONFIG`, `HISTORY`), trace toggles (`TR CAN`, `TR STATE`, `TR CHG`, `TR OFF`), and live parameter tuning (`maxv`, `maxc`).
+  - Direct 9600 baud ASCII console with quick buttons (`SHOW`, `CONFIG`, `HISTORY`), trace toggles (`TR CAN`, `TR STATE`, `TR CHG`, `TR OFF`), and live parameter tuning (`maxv`, `maxc` up to 80A).
 - **Integrated Offline Simulator Engine**:
-  - Built-in test harness with 8 realistic presets (`Dual Chg`, `Single Chg`, `CV Taper`, `Overtemp`, `CAN Rxerr`, `Input Err`, `Pack Err`, `Standby`) and interactive sliders for bench testing without vehicle hardware.
+  - Built-in test harness with 8 realistic presets (`4 Chg`, `2 Chg`, `1 Chg`, `CV Taper`, `Overtemp`, `CAN Rxerr`, `Volt Err`, `Standby`) and interactive sliders for bench testing without vehicle hardware.
 - **Automotive Dashboard Ready**:
   - Dark-mode responsive design tailored for in-vehicle Android head units and tablets (1920x1200, 1280x800) with edge-to-edge layout and zero vertical scrolling.
 

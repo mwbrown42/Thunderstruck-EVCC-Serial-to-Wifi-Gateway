@@ -35,7 +35,7 @@ EvccSimulator::EvccSimulator()
       _buzzer("OFF"),
       _simUptimeSec(1840),
       _simMaxv(134.4f),
-      _simMaxc(20.0f),
+      _simMaxc(80.0f),
       _simTermc(1.5f),
       _simTermt(360.0f),
       _traceCharger(true),
@@ -48,7 +48,7 @@ EvccSimulator::EvccSimulator()
 }
 
 void EvccSimulator::begin() {
-    applyScenario(SIM_DUAL_CHARGE);
+    applyScenario(SIM_QUAD_CHARGE);
 }
 
 void EvccSimulator::setEnabled(bool enabled) {
@@ -75,16 +75,54 @@ void EvccSimulator::applyScenario(SimScenario scenario) {
     clearAllFaults();
 
     switch (scenario) {
-        case SIM_DUAL_CHARGE:
+        case SIM_QUAD_CHARGE:
             _c1_v = 116.4f;
-            _c1_a = 18.2f;
+            _c1_a = 20.0f;
             _c1_temp = 38.0f;
             _c1_wh = 450.2f;
 
             _c2_v = 116.5f;
-            _c2_a = 18.0f;
+            _c2_a = 20.0f;
             _c2_temp = 39.0f;
             _c2_wh = 446.8f;
+
+            _c3_v = 116.3f;
+            _c3_a = 20.0f;
+            _c3_temp = 37.0f;
+            _c3_wh = 448.1f;
+
+            _c4_v = 116.6f;
+            _c4_a = 20.0f;
+            _c4_temp = 38.0f;
+            _c4_wh = 445.0f;
+
+            _sysState = "CHARGE";
+            _j1772State = "LOCKED";
+            _proximity = "EVSE Connected and locked";
+            _cellLoop = "OK";
+            _buzzer = "OFF";
+            break;
+
+        case SIM_DUAL_CHARGE:
+            _c1_v = 116.4f;
+            _c1_a = 20.0f;
+            _c1_temp = 38.0f;
+            _c1_wh = 450.2f;
+
+            _c2_v = 116.5f;
+            _c2_a = 20.0f;
+            _c2_temp = 39.0f;
+            _c2_wh = 446.8f;
+
+            _c3_v = 0.0f;
+            _c3_a = 0.0f;
+            _c3_temp = 22.0f;
+            _c3_wh = 0.0f;
+
+            _c4_v = 0.0f;
+            _c4_a = 0.0f;
+            _c4_temp = 22.0f;
+            _c4_wh = 0.0f;
 
             _sysState = "CHARGE";
             _j1772State = "LOCKED";
@@ -95,7 +133,7 @@ void EvccSimulator::applyScenario(SimScenario scenario) {
 
         case SIM_SINGLE_CHARGE:
             _c1_v = 116.4f;
-            _c1_a = 18.2f;
+            _c1_a = 20.0f;
             _c1_temp = 38.0f;
             _c1_wh = 520.0f;
 
@@ -103,6 +141,16 @@ void EvccSimulator::applyScenario(SimScenario scenario) {
             _c2_a = 0.0f;
             _c2_temp = 22.0f;
             _c2_wh = 0.0f;
+
+            _c3_v = 0.0f;
+            _c3_a = 0.0f;
+            _c3_temp = 22.0f;
+            _c3_wh = 0.0f;
+
+            _c4_v = 0.0f;
+            _c4_a = 0.0f;
+            _c4_temp = 22.0f;
+            _c4_wh = 0.0f;
 
             _sysState = "CHARGE";
             _j1772State = "LOCKED";
@@ -112,7 +160,7 @@ void EvccSimulator::applyScenario(SimScenario scenario) {
 
         case SIM_TAPERING:
             _c1_v = 133.8f;
-            _c1_a = 2.1f;
+            _c1_a = 2.0f;
             _c1_temp = 42.0f;
             _c1_wh = 14520.0f;
 
@@ -120,6 +168,16 @@ void EvccSimulator::applyScenario(SimScenario scenario) {
             _c2_a = 2.0f;
             _c2_temp = 41.0f;
             _c2_wh = 14210.0f;
+
+            _c3_v = 133.8f;
+            _c3_a = 2.0f;
+            _c3_temp = 40.5f;
+            _c3_wh = 14350.0f;
+
+            _c4_v = 133.8f;
+            _c4_a = 2.0f;
+            _c4_temp = 41.5f;
+            _c4_wh = 14280.0f;
 
             _sysState = "FINISH CHARGE";
             _j1772State = "LOCKED";
@@ -140,6 +198,18 @@ void EvccSimulator::applyScenario(SimScenario scenario) {
             _c2_faults.overtemp = true;
             _c2_faults.not_charging = true;
 
+            _c3_v = 116.0f;
+            _c3_a = 0.0f;
+            _c3_temp = 67.0f;
+            _c3_faults.overtemp = true;
+            _c3_faults.not_charging = true;
+
+            _c4_v = 116.0f;
+            _c4_a = 0.0f;
+            _c4_temp = 65.0f;
+            _c4_faults.overtemp = true;
+            _c4_faults.not_charging = true;
+
             _sysState = "FAULT";
             _j1772State = "LOCKED";
             _buzzer = "ON";
@@ -148,8 +218,12 @@ void EvccSimulator::applyScenario(SimScenario scenario) {
         case SIM_CAN_RXERR:
             _c1_faults.rxerr = true;
             _c2_faults.rxerr = true;
+            _c3_faults.rxerr = true;
+            _c4_faults.rxerr = true;
             _c1_a = 0.0f;
             _c2_a = 0.0f;
+            _c3_a = 0.0f;
+            _c4_a = 0.0f;
             _sysState = "FAULT";
             _buzzer = "ON";
             break;
@@ -159,8 +233,14 @@ void EvccSimulator::applyScenario(SimScenario scenario) {
             _c1_faults.not_charging = true;
             _c2_faults.input_voltage_err = true;
             _c2_faults.not_charging = true;
+            _c3_faults.input_voltage_err = true;
+            _c3_faults.not_charging = true;
+            _c4_faults.input_voltage_err = true;
+            _c4_faults.not_charging = true;
             _c1_a = 0.0f;
             _c2_a = 0.0f;
+            _c3_a = 0.0f;
+            _c4_a = 0.0f;
             _sysState = "FAULT";
             break;
 
@@ -169,8 +249,14 @@ void EvccSimulator::applyScenario(SimScenario scenario) {
             _c1_faults.not_charging = true;
             _c2_faults.pack_voltage_err = true;
             _c2_faults.not_charging = true;
+            _c3_faults.pack_voltage_err = true;
+            _c3_faults.not_charging = true;
+            _c4_faults.pack_voltage_err = true;
+            _c4_faults.not_charging = true;
             _c1_a = 0.0f;
             _c2_a = 0.0f;
+            _c3_a = 0.0f;
+            _c4_a = 0.0f;
             _sysState = "FAULT";
             break;
 
@@ -181,6 +267,12 @@ void EvccSimulator::applyScenario(SimScenario scenario) {
             _c2_v = 0.0f;
             _c2_a = 0.0f;
             _c2_temp = 24.0f;
+            _c3_v = 0.0f;
+            _c3_a = 0.0f;
+            _c3_temp = 24.0f;
+            _c4_v = 0.0f;
+            _c4_a = 0.0f;
+            _c4_temp = 24.0f;
             _sysState = "STANDBY";
             _j1772State = "CONNECTED";
             _proximity = "EVSE Connected";
@@ -409,14 +501,18 @@ void EvccSimulator::process() {
         _lastTickMs = now;
         _simUptimeSec++;
 
-        if (_sysState == "CHARGE" && !_c1_faults.hasAnyFault() && !_c2_faults.hasAnyFault()) {
+        if (_sysState == "CHARGE" && !_c1_faults.hasAnyFault() && !_c2_faults.hasAnyFault() && !_c3_faults.hasAnyFault() && !_c4_faults.hasAnyFault()) {
             // Wh accumulation
             _c1_wh += (_c1_v * _c1_a) / 3600.0f;
             _c2_wh += (_c2_v * _c2_a) / 3600.0f;
+            _c3_wh += (_c3_v * _c3_a) / 3600.0f;
+            _c4_wh += (_c4_v * _c4_a) / 3600.0f;
 
             // Slow voltage ramp
-            if (_c1_v < _simMaxv) _c1_v += 0.02f;
-            if (_c2_v < _simMaxv) _c2_v += 0.02f;
+            if (_c1_v > 0.0f && _c1_v < _simMaxv) _c1_v += 0.02f;
+            if (_c2_v > 0.0f && _c2_v < _simMaxv) _c2_v += 0.02f;
+            if (_c3_v > 0.0f && _c3_v < _simMaxv) _c3_v += 0.02f;
+            if (_c4_v > 0.0f && _c4_v < _simMaxv) _c4_v += 0.02f;
 
             // Tapering current when near maxv
             if (_c1_v >= (_simMaxv - 2.0f) && _c1_a > _simTermc) {
@@ -427,9 +523,17 @@ void EvccSimulator::process() {
                 _c2_a -= 0.05f;
                 if (_c2_a < _simTermc) _c2_a = _simTermc;
             }
+            if (_c3_v >= (_simMaxv - 2.0f) && _c3_a > _simTermc) {
+                _c3_a -= 0.05f;
+                if (_c3_a < _simTermc) _c3_a = _simTermc;
+            }
+            if (_c4_v >= (_simMaxv - 2.0f) && _c4_a > _simTermc) {
+                _c4_a -= 0.05f;
+                if (_c4_a < _simTermc) _c4_a = _simTermc;
+            }
 
             // Charge complete
-            if (_c1_v >= _simMaxv && _c1_a <= _simTermc && _c2_a <= _simTermc) {
+            if (_c1_v >= _simMaxv && _c1_a <= _simTermc && _c2_a <= _simTermc && _c3_a <= _simTermc && _c4_a <= _simTermc) {
                 _sysState = "FINISH CHARGE";
             }
         }

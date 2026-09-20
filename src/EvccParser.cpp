@@ -601,14 +601,14 @@ void EvccParser::updateThermalGovernor() {
     _governor.peakTemp = round(peakT * 10.0f) / 10.0f;
     _governor.hottestCharger = hottest;
 
-    // Ensure baseline is established from parsed config or fallback to 20.0A
+    // Ensure baseline is established from parsed config or fallback to 80.0A
     if (_governor.baselineMaxc <= 0.0f) {
         if (_systemState.maxc > 0.0f) {
             _governor.baselineMaxc = _systemState.maxc;
             _governor.activeMaxc = _systemState.maxc;
         } else {
-            _governor.baselineMaxc = 20.0f;
-            _governor.activeMaxc = 20.0f;
+            _governor.baselineMaxc = 80.0f;
+            _governor.activeMaxc = 80.0f;
         }
     }
 
@@ -638,27 +638,27 @@ void EvccParser::updateThermalGovernor() {
     }
 
     // Determine target derating scale factor based on peak heatsink temperature:
-    // (TSM2500 shuts down at 64°C!)
-    // Zone 0: <= 52°C -> 1.00 (Full baseline)
-    // Zone 1: 53°C - 56°C -> 0.85 (15% derate)
-    // Zone 2: 57°C - 59°C -> 0.70 (30% derate)
-    // Zone 3: 60°C - 62°C -> 0.50 (50% derate)
-    // Zone 4: >= 63°C -> 0.30 (70% emergency derate, min 5A floor)
+    // (EVCC shuts down and trips charging at 60°C!)
+    // Zone 0: <= 49°C -> 1.00 (Full baseline)
+    // Zone 1: 50°C - 53°C -> 0.85 (15% derate)
+    // Zone 2: 54°C - 56°C -> 0.70 (30% derate)
+    // Zone 3: 57°C - 58°C -> 0.50 (50% derate)
+    // Zone 4: >= 59°C -> 0.30 (70% emergency derate, min 5A floor)
     float targetScale = 1.0f;
 
-    if (peakT >= 63.0f) {
+    if (peakT >= 59.0f) {
         targetScale = 0.30f;
-    } else if (peakT >= 60.0f) {
-        targetScale = 0.50f;
     } else if (peakT >= 57.0f) {
+        targetScale = 0.50f;
+    } else if (peakT >= 54.0f) {
         targetScale = 0.70f;
-    } else if (peakT >= 53.0f) {
+    } else if (peakT >= 50.0f) {
         targetScale = 0.85f;
-    } else if (peakT <= 49.0f) {
-        // Recovery threshold: Heatsink must cool down to <= 49°C to step up to 100%
+    } else if (peakT <= 47.0f) {
+        // Recovery threshold: Heatsink must cool down to <= 47°C to step up to 100%
         targetScale = 1.0f;
     } else {
-        // In the hysteresis band (49.1°C - 52.9°C): retain current active derate scale
+        // In the hysteresis band (47.1°C - 49.9°C): retain current active derate scale
         if (_governor.isDerated && _governor.baselineMaxc > 0.0f) {
             targetScale = _governor.activeMaxc / _governor.baselineMaxc;
         } else {
@@ -678,10 +678,10 @@ void EvccParser::updateThermalGovernor() {
     // Dwell time: When stepped down, hold derated level for at least 90s before stepping up!
     bool dwellSatisfied = (now - _lastDerateTimeMs >= 90000);
 
-    // Emergency throttle (>=63°C) or stepping down acts quickly (min 15s).
+    // Emergency throttle (>=59°C) or stepping down acts quickly (min 15s).
     // Stepping back UP requires 90s dwell time to prevent cycling/hunting.
     bool canAdjust = false;
-    if (peakT >= 63.0f && isSteppingDown) {
+    if (peakT >= 59.0f && isSteppingDown) {
         canAdjust = true; // Immediate emergency reaction
     } else if (isSteppingDown && (now - _lastGovernorAdjustMs >= 15000)) {
         canAdjust = true;

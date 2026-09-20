@@ -21,9 +21,9 @@ Built for custom electric vehicle conversions, digital dashboards, and automated
   - [4°C Hysteresis Guard](#4c-hysteresis-guard)
   - [90-Second Dwell Stabilization Timer](#90-second-dwell-stabilization-timer)
 - [Subnet UDP Broadcast Protocol (Port 8888)](#subnet-udp-broadcast-protocol-port-8888)
-- [Android Dashboard Integration](#android-dashboard-integration)
-- [First-Time WiFi Setup & Web Portal](#first-time-wifi-setup--web-portal)
 - [Web Dashboard & Controls](#web-dashboard--controls)
+- [Standalone Android Companion App](#standalone-android-companion-app)
+- [First-Time WiFi Setup & Web Portal](#first-time-wifi-setup--web-portal)
 - [REST API & WebSocket Protocol](#rest-api--websocket-protocol)
 - [Persistent Flash Event Logging](#persistent-flash-event-logging)
 - [Building and Flashing](#building-and-flashing)
@@ -303,47 +303,18 @@ Client applications listen on UDP port 8888. The incoming UDP packet address dyn
 
 ---
 
-## 📱 Standalone Android App: Android Thunderstruck EV Charger Monitor
-
-This gateway pairs natively with the standalone companion application:
-👉 **[Android Thunderstruck EV Charger Monitor](file:///Z:/Personal/Mike/AndroidDevelopment/Android%20Thunderstruck%20EV%20Charger%20Monitor/README.md)** *(Standalone Repository / Package: `com.mikeland.thunderstruck.evcc.monitor`)*
-*(Local Workspace: `Z:\Personal\Mike\AndroidDevelopment\Android Thunderstruck EV Charger Monitor`)*
-
-<p align="center">
-  <img src="docs/images/charging_tab_screen.png" alt="Android Thunderstruck EV Charger Monitor" width="700">
-  <br>
-  <em>Figure 2: Standalone Android Tablet Monitor showing 4 chargers active in real-time with dual-axis charts and thermal governor tracking</em>
-</p>
-
-- **Dynamic 1 to 4 Charger Support**: Automatically displays 1, 2, 3, or 4 chargers (`charger1` to `charger4`, CAN IDs 40..43) side-by-side with responsive width scaling and zero vertical scrolling.
-- **High-Power 80A Charging Support**: Handles up to **80.0A** aggregate charging current (4x 20.0A TSM-2500 units) with real-time total kilowatt and amperage calculation.
-- **Dual-Axis Charging Histograms**: Overlays Voltage (violet) and Current (green) scaled dynamically per charger.
-- **Multi-Zone Temperature History Chart**: Live thermal traces for all 4 chargers with explicit **50°C DERATE** warning and **60°C TRIP** safety lines.
-- **Interactive Offline Simulator Engine**: Bench-test all scenarios with 8 one-tap presets (`4 Chg`, `2 Chg`, `1 Chg`, `CV Taper`, `Overtemp`, `CAN RxErr`, `Volt Err`, `Standby`) and live voltage/current sliders.
-- **Serial Terminal & Trace Controls**: Live 9600 baud EVCC console with quick queries (`SHOW`, `CONFIG`, `HISTORY`), trace toggles (`TR CAN`, `TR STATE`, `TR CHG`, `TR OFF`), and setpoint adjustments (`maxv`, `maxc`).
-
----
-
-## First-Time WiFi Setup & Web Portal
-
-1. **Power the Board**: Connect 5V to the RIGHT port using a standard USB-A to USB-C cable.
-2. **Connect to SoftAP**: On your phone, tablet, or laptop, connect to:
-   - **SSID**: `EVCC-Gateway-AP`
-   - **Password**: None *(Open network)*
-   - **IP Address**: `192.168.4.1`
-3. **Mobile Tip**: If your phone prompts *"Wi-Fi has no internet access"*, select **"Keep Wi-Fi connection"** and temporarily toggle mobile data off.
-4. **Open Web Portal**: Navigate to `http://192.168.4.1` in your browser.
-5. **Configure Network**: Click **⚙️ Settings**, enter your vehicle or home Wi-Fi SSID and password (use **👁️ Show** to verify), and click **"Save & Connect"**.
-6. **Factory Reset**: To reset back to `EVCC-Gateway-AP` at any time, hold the onboard **`BOOT`** button (GPIO 0) for **5 seconds**.
-
----
-
 ## Web Dashboard & Controls
 
 Open a web browser to the gateway's IP address (e.g. `http://192.168.4.1` or the assigned station IP).
 
+<p align="center">
+  <img src="docs/images/web_dashboard.png" alt="ESP32 Onboard Web Dashboard" width="850">
+  <br>
+  <em>Figure 2: ESP32-S3 Onboard Web Dashboard showing real-time quad charger telemetry, fault matrices, dual-axis histograms, and thermal governor status</em>
+</p>
+
 ### Main Sections:
-1. **Header Bar**: Live connection badge, J1772 pilot state, EVCC operational state, and one-click access to Settings.
+1. **Header Bar**: Live connection badge, J1772 pilot state, EVCC operational state, thermal governor pill, and one-click access to Settings.
 2. **Charger Cards (1 to 4)**: Instant display of Voltage, Current, Watts, Watt-hours, and Temperature for all units with fault flags.
 3. **Live Histograms**: Real-time auto-scaling charts plotting Voltage and Current progression.
 4. **Controls**: Pushbuttons for `Trace CAN`, `Trace State`, `Trace Charger`, `Trace Off`, and input fields for `maxv`, `maxc`, `termc`.
@@ -358,6 +329,56 @@ Open a web browser to the gateway's IP address (e.g. `http://192.168.4.1` or the
 | **Charger 2** | `tsm2500_41` | 41 (`0x29`) | `set charger2 tsm2500_41` | `set charger2 tsm2500_41 program` |
 | **Charger 3** | `tsm2500_42` | 42 (`0x2A`) | `set charger3 tsm2500_42` | `set charger3 tsm2500_42 program` |
 | **Charger 4** | `tsm2500_43` | 43 (`0x2B`) | `set charger4 tsm2500_43` | `set charger4 tsm2500_43 program` |
+
+---
+
+## 📱 Standalone Android Companion App
+
+In addition to the onboard web dashboard, a standalone Android companion application is available:
+👉 **[Android Thunderstruck EV Charger Monitor](https://github.com/mwbrown42/Android-Thunderstruck-EV-Charger-Monitor)** *(Standalone Application / Package: `com.mikeland.thunderstruck.evcc.monitor`)*
+
+<p align="center">
+  <img src="docs/images/charging_tab_screen.png" alt="Android Thunderstruck EV Charger Monitor" width="700">
+  <br>
+  <em>Figure 3: Standalone Android Tablet Monitor showing 4 chargers active in real-time with dual-axis charts and thermal governor tracking</em>
+</p>
+
+### Highlights & Features:
+- **Zero-Configuration Network Auto-Discovery**:
+  - Automatically discovers the ESP32 Gateway via the 1 Hz UDP broadcast beacon on port `8888`.
+  - Instant WebSocket connection with active 4-second watchdog and real-time **Online / Offline** status.
+- **Dynamic 1 to 4 Charger Support**:
+  - Automatically displays 1, 2, 3, or 4 chargers (`charger1` to `charger4`, CAN IDs 40..43) side-by-side with responsive width scaling and zero vertical scrolling.
+  - Live gauges for Voltage, Current, Power (W), Session Energy (Wh), and Temperature (°C).
+  - Hardware fault pills: `rxerr`, `hwfail`, `overtemp`, `not chg`, `input err`, and `pack err`.
+- **High-Power 80A Charging Support**:
+  - Handles up to **80.0A** aggregate charging current (4x 20.0A TSM-2500 units) with real-time total kilowatt and amperage calculation.
+- **Dynamic Dual-Axis Charging Session Graphs**:
+  - Synchronous overlay of Voltage (violet) and Current (green) with automatic dual-axis scaling.
+- **Multi-Zone Temperature History Chart**:
+  - Visual tracking with safety warning lines for **50°C Derate** and **60°C Emergency Trip**.
+- **Intelligent Thermal Governor Controls**:
+  - Live throttling feedback (`🛡️ Gov: OPTIMAL`, `⚠️ Gov: 75%`, `⚪ Gov: OFF`) to prevent charger thermal shutdown.
+- **Bidirectional EVCC Serial Terminal**:
+  - Direct 9600 baud ASCII console with quick buttons (`SHOW`, `CONFIG`, `HISTORY`), trace toggles (`TR CAN`, `TR STATE`, `TR CHG`, `TR OFF`), and live parameter tuning (`maxv`, `maxc` up to 80A).
+- **Integrated Offline Simulator Engine**:
+  - Built-in test harness with 8 realistic presets (`4 Chg`, `2 Chg`, `1 Chg`, `CV Taper`, `Overtemp`, `CAN Rxerr`, `Volt Err`, `Standby`) and interactive sliders for bench testing without vehicle hardware.
+- **Automotive Dashboard Ready**:
+  - Dark-mode responsive design tailored for in-vehicle Android head units and tablets (1920x1200, 1280x800) with edge-to-edge layout and zero vertical scrolling.
+
+---
+
+## First-Time WiFi Setup & Web Portal
+
+1. **Power the Board**: Connect 5V to the RIGHT port using a standard USB-A to USB-C cable.
+2. **Connect to SoftAP**: On your phone, tablet, or laptop, connect to:
+   - **SSID**: `EVCC-Gateway-AP`
+   - **Password**: None *(Open network)*
+   - **IP Address**: `192.168.4.1`
+3. **Mobile Tip**: If your phone prompts *"Wi-Fi has no internet access"*, select **"Keep Wi-Fi connection"** and temporarily toggle mobile data off.
+4. **Open Web Portal**: Navigate to `http://192.168.4.1` in your browser.
+5. **Configure Network**: Click **⚙️ Settings**, enter your vehicle or home Wi-Fi SSID and password (use **👁️ Show** to verify), and click **"Save & Connect"**.
+6. **Factory Reset**: To reset back to `EVCC-Gateway-AP` at any time, hold the onboard **`BOOT`** button (GPIO 0) for **5 seconds**.
 
 ---
 
@@ -403,34 +424,6 @@ To ensure field testing in vehicles and basements can be diagnosed without a liv
   - **Serial Monitor**: Type `log` in the serial console.
   - **Browser**: Navigate to `http://<IP>/api/log`.
   - **Web / Tablet Terminal**: Type `log` into the terminal input bar.
-
----
-
-## 📱 Companion Android App: Thunderstruck EV Charger Monitor
-
-In addition to the onboard web dashboard, a standalone, generic Android companion application is available:
-👉 **[Android Thunderstruck EV Charger Monitor](file:///Z:/Personal/Mike/AndroidDevelopment/Android%20Thunderstruck%20EV%20Charger%20Monitor/README.md)** *(Standalone Repository)*
-
-### Highlights & Features:
-- **Zero-Configuration Network Auto-Discovery**:
-  - Automatically discovers the ESP32 Gateway via the 1 Hz UDP broadcast beacon on port `8888`.
-  - Instant WebSocket connection with active 4-second watchdog and real-time **Online / Offline** status.
-- **Dedicated 1 to 4 Charger Telemetry**:
-  - Live gauges for Voltage, Current, Power (W), Session Energy (Wh), and Temperature (°C) for **Charger 1 (`tsm2500`, 0x40)**, **Charger 2 (`tsm2500_41`, 0x41)**, **Charger 3 (`tsm2500_42`, 0x42)**, and **Charger 4 (`tsm2500_43`, 0x43)**.
-  - Hardware fault pills: `rxerr`, `hwfail`, `overtemp`, `not chg`, `input err`, and `pack err`.
-  - Dynamically adapts across 1, 2, 3, or 4 charger card views based on active CAN telemetry with automatic equal-width flex layout.
-- **Dynamic Dual-Axis Charging Session Graphs**:
-  - Synchronous overlay of Voltage (violet) and Current (green) with automatic dual-axis scaling.
-- **Multi-Zone Temperature History Chart**:
-  - Visual tracking with safety warning lines for **50°C Derate** and **60°C Emergency Trip**.
-- **Intelligent Thermal Governor Controls**:
-  - Live throttling feedback (`🛡️ Gov: OPTIMAL`, `⚠️ Gov: 75%`, `⚪ Gov: OFF`) to prevent charger thermal shutdown.
-- **Bidirectional EVCC Serial Terminal**:
-  - Direct 9600 baud ASCII console with quick buttons (`SHOW`, `CONFIG`, `HISTORY`), trace toggles (`TR CAN`, `TR STATE`, `TR CHG`, `TR OFF`), and live parameter tuning (`maxv`, `maxc` up to 80A).
-- **Integrated Offline Simulator Engine**:
-  - Built-in test harness with 8 realistic presets (`4 Chg`, `2 Chg`, `1 Chg`, `CV Taper`, `Overtemp`, `CAN Rxerr`, `Volt Err`, `Standby`) and interactive sliders for bench testing without vehicle hardware.
-- **Automotive Dashboard Ready**:
-  - Dark-mode responsive design tailored for in-vehicle Android head units and tablets (1920x1200, 1280x800) with edge-to-edge layout and zero vertical scrolling.
 
 ---
 

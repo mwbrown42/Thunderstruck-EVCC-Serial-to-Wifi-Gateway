@@ -89,6 +89,15 @@ struct EvccSystemState {
     uint32_t sessionElapsedSec = 0;
 };
 
+// Individual Charger Thermal Governor Status
+struct ChargerGovernorStatus {
+    bool isDerated          = false;
+    float currentTemp       = 0.0f;
+    float targetScale       = 1.0f;     // 1.0, 0.85, 0.70, 0.50, 0.30
+    float targetAmps        = 0.0f;     // Safe allowed current allocated for this charger
+    String statusText       = "Optimal"; // "Optimal (<65°C)", "Mild Derate (85%)", etc.
+};
+
 // Closed-Loop Thermal Governor Status
 struct ThermalGovernorStatus {
     bool enabled            = true;    // User toggleable via UI or API
@@ -99,6 +108,55 @@ struct ThermalGovernorStatus {
     float peakTemp          = 0.0f;    // Highest charger heatsink temperature currently observed
     String hottestCharger   = "";      // Name of the charger currently running hottest
     String statusText       = "Optimal"; // "Optimal", "Warm", "Derated (-30%)", "Emergency Floor"
+    ChargerGovernorStatus chargers[4];  // Individual throttling status per charger
+};
+
+// ============================================================================
+// CC/CV Dynamic Tapering Profile & Runtime Status
+// ============================================================================
+#define CCCV_NUM_POINTS 5
+
+struct CccvPoint {
+    float voltage   = 0.0f; // Pack voltage threshold (V)
+    float current   = 0.0f; // Target max charging current (A)
+
+    CccvPoint() : voltage(0.0f), current(0.0f) {}
+    CccvPoint(float v, float c) : voltage(v), current(c) {}
+};
+
+struct CccvProfile {
+    bool enabled            = true;
+    uint8_t cellCount       = 36;   // e.g. 36S Tesla pack
+    bool smoothLinear       = false;// false = Discrete steps (saves EEPROM life!), true = Smooth linear ramp
+    bool fastCutoff         = true; // true = Cleanly terminate immediately at voltage ceiling; false = Hold CV
+    float terminationAmps   = 4.0f; // Current cutoff threshold (A)
+    CccvPoint points[CCCV_NUM_POINTS];
+
+    void setDefaultTesla36S() {
+        enabled = true;
+        cellCount = 36;
+        smoothLinear = false;       // Default discrete steps to protect EEPROM
+        fastCutoff = true;          // Clean immediate termination at top of charge
+        terminationAmps = 4.0f;
+        // 36S Conservative (4.10V / cell = 147.6V)
+        points[0] = CccvPoint(143.3f, 50.0f); // Bulk CC (< 3.98V/cell)
+        points[1] = CccvPoint(145.4f, 35.0f); // Initial Taper (4.04V/cell)
+        points[2] = CccvPoint(146.5f, 20.0f); // Mid Taper (4.07V/cell)
+        points[3] = CccvPoint(147.2f, 10.0f); // Fine Taper (4.09V/cell)
+        points[4] = CccvPoint(147.6f,  4.0f); // Cutoff Ceiling (4.10V/cell)
+    }
+};
+
+struct CccvGovernorStatus {
+    bool enabled            = true;
+    bool isTapering         = false;
+    float packVoltage       = 0.0f; // Live measured pack voltage (V)
+    float cellVoltageEquiv  = 0.0f; // Pack voltage / cellCount (V)
+    float targetAmps        = 50.0f;// Target amps computed by CC/CV curve
+    float activeCurrent     = 0.0f; // Total actual measured charging amps
+    String phase            = "BULK_CC"; // BULK_CC, TAPER_1, TAPER_2, TAPER_3, BALANCE, COMPLETE
+    String statusText       = "Bulk Constant Current";
+    uint32_t writesThisSession = 0; // Number of 'set maxc' commands sent to EVCC this session
 };
 
 // Data point for real-time charge session histogram

@@ -2,6 +2,7 @@
 #include "USBSerialHost.h"
 #include "EvccSimulator.h"
 #include "EventLogger.h"
+#include "CccvGovernor.h"
 
 EvccParser& EvccParser::getInstance() {
     static EvccParser instance;
@@ -291,6 +292,8 @@ void EvccParser::parseTraceStateLine(const String& line) {
         // If transitioning into CHARGE from another state, start fresh histogram session
         if (newState == "CHARGE" && _systemState.state != "CHARGE") {
             resetSessionHistory();
+            CccvGovernor::getInstance().resetSessionWrites();
+            CccvGovernor::getInstance().resetCompletion();
         }
         _systemState.state = newState;
     }
@@ -574,32 +577,26 @@ void EvccParser::updateThermalGovernor() {
     if (now - _lastGovernorCheckMs < 1000) return;
     _lastGovernorCheckMs = now;
 
-    // Scan all chargers for peak temperature and hottest unit
+    // Scan all chargers for activity, peak temperature, and active count
     float rawPeakT = 0.0f;
     String hottest = "";
     bool chargingActive = false;
+    int numActiveChargers = 0;
+
     for (int i = 0; i < NUM_CHARGERS; i++) {
-        if (_chargers[i].active || _chargers[i].current > 0.5f || _chargers[i].temperature > 0.0f) {
-            if (_chargers[i].current > 0.5f || _systemState.state.indexOf("CHARGE") >= 0) {
-                chargingActive = true;
-            }
-            if (_chargers[i].temperature > rawPeakT) {
-                rawPeakT = _chargers[i].temperature;
-                hottest = _chargers[i].name;
-            }
+        bool isActive = _chargers[i].active || _chargers[i].current > 0.5f || _chargers[i].voltage > 20.0f;
+        if (isActive) {
+            numActiveChargers++;
+        }
+        if (_chargers[i].current > 0.5f || _systemState.state.indexOf("CHARGE") >= 0) {
+            chargingActive = true;
+        }
+        if (_chargers[i].temperature > rawPeakT) {
+            rawPeakT = _chargers[i].temperature;
+            hottest = _chargers[i].name;
         }
     }
-
-    // 3-point exponential moving average smoothing for temperature
-    if (_filteredPeakTemp <= 0.0f || !chargingActive) {
-        _filteredPeakTemp = rawPeakT;
-    } else {
-        _filteredPeakTemp = (_filteredPeakTemp * 2.0f + rawPeakT) / 3.0f;
-    }
-    float peakT = _filteredPeakTemp;
-
-    _governor.peakTemp = round(peakT * 10.0f) / 10.0f;
-    _governor.hottestCharger = hottest;
+    if (numActiveChargers == 0) numActiveChargers = 2; // Default dual-charger baseline
 
     // Ensure baseline is established from parsed config or fallback to 80.0A
     if (_governor.baselineMaxc <= 0.0f) {
@@ -612,14 +609,101 @@ void EvccParser::updateThermalGovernor() {
         }
     }
 
+    float basePerCharger = _governor.baselineMaxc / (float)numActiveChargers;
+
     if (!_governor.enabled) {
         _governor.statusText = "Disabled";
         _governor.deratePercent = 100.0f;
         _governor.activeMaxc = _governor.baselineMaxc;
+        for (int i = 0; i < NUM_CHARGERS; i++) {
+            _governor.chargers[i].isDerated = false;
+            _governor.chargers[i].targetScale = 1.0f;
+            _governor.chargers[i].targetAmps = basePerCharger;
+            _governor.chargers[i].statusText = "Disabled";
+        }
         return;
     }
 
-    if (!chargingActive && peakT < 48.0f) {
+    // 1. Calculate individual thermal governor status for EACH charger separately
+    // TSM-2500 internal trip ceiling is 85°C.
+    // Zones with 75°C knee:
+    // Zone 0: < 75°C -> 1.00 (Full 100% capacity - chargers run full blast)
+    // Zone 1: 75°C - 78°C -> 0.85 (Mild 15% derate to stabilize)
+    // Zone 2: 79°C - 81°C -> 0.70 (Moderate 30% derate)
+    // Zone 3: 82°C - 83°C -> 0.50 (Heavy 50% derate)
+    // Zone 4: >= 84°C -> 0.30 (70% emergency floor before 85°C trip)
+    // Recovery threshold: <= 71°C (must cool to <= 71°C before lifting derate)
+    float minAllowedScale = 1.0f;
+    int limitingChargerIdx = -1;
+
+    for (int i = 0; i < NUM_CHARGERS; i++) {
+        float rawT = _chargers[i].temperature;
+        if (_filteredChargerTemp[i] <= 0.0f || !chargingActive) {
+            _filteredChargerTemp[i] = rawT;
+        } else {
+            _filteredChargerTemp[i] = (_filteredChargerTemp[i] * 2.0f + rawT) / 3.0f;
+        }
+        float chTemp = _filteredChargerTemp[i];
+        _governor.chargers[i].currentTemp = round(chTemp * 10.0f) / 10.0f;
+
+        float chScale = 1.0f;
+        String chStatus = "Optimal";
+
+        if (chTemp >= 84.0f) {
+            chScale = 0.30f;
+            char sbuf[48];
+            snprintf(sbuf, sizeof(sbuf), "Emergency Floor (30%% @ %.0f°C)", chTemp);
+            chStatus = String(sbuf);
+        } else if (chTemp >= 82.0f) {
+            chScale = 0.50f;
+            char sbuf[48];
+            snprintf(sbuf, sizeof(sbuf), "Heavy Derate (50%% @ %.0f°C)", chTemp);
+            chStatus = String(sbuf);
+        } else if (chTemp >= 79.0f) {
+            chScale = 0.70f;
+            char sbuf[48];
+            snprintf(sbuf, sizeof(sbuf), "Moderate Derate (70%% @ %.0f°C)", chTemp);
+            chStatus = String(sbuf);
+        } else if (chTemp >= 75.0f) {
+            chScale = 0.85f;
+            char sbuf[48];
+            snprintf(sbuf, sizeof(sbuf), "Mild Derate (85%% @ %.0f°C)", chTemp);
+            chStatus = String(sbuf);
+        } else if (chTemp <= 71.0f) {
+            chScale = 1.0f;
+            char sbuf[48];
+            snprintf(sbuf, sizeof(sbuf), "Optimal (%.0f°C)", chTemp);
+            chStatus = String(sbuf);
+        } else {
+            // In hysteresis band (71.1°C - 74.9°C): maintain current individual scale
+            if (_governor.chargers[i].isDerated) {
+                chScale = _governor.chargers[i].targetScale;
+                chStatus = _governor.chargers[i].statusText;
+            } else {
+                chScale = 1.0f;
+                char sbuf[48];
+                snprintf(sbuf, sizeof(sbuf), "Optimal (%.0f°C)", chTemp);
+                chStatus = String(sbuf);
+            }
+        }
+
+        _governor.chargers[i].isDerated = (chScale < 0.99f);
+        _governor.chargers[i].targetScale = chScale;
+        _governor.chargers[i].targetAmps = round((basePerCharger * chScale) * 10.0f) / 10.0f;
+        _governor.chargers[i].statusText = chStatus;
+
+        // Check against active chargers for system-level constraint
+        bool isActive = _chargers[i].active || _chargers[i].current > 0.5f || numActiveChargers <= 2;
+        if (isActive && chScale < minAllowedScale) {
+            minAllowedScale = chScale;
+            limitingChargerIdx = i;
+        }
+    }
+
+    _governor.peakTemp = round(rawPeakT * 10.0f) / 10.0f;
+    _governor.hottestCharger = hottest;
+
+    if (!chargingActive && _governor.peakTemp < 60.0f) {
         if (_governor.isDerated) {
             _governor.isDerated = false;
             _governor.deratePercent = 100.0f;
@@ -637,52 +721,56 @@ void EvccParser::updateThermalGovernor() {
         return;
     }
 
-    // Determine target derating scale factor based on peak heatsink temperature:
-    // (EVCC shuts down and trips charging at 60°C!)
-    // Zone 0: <= 49°C -> 1.00 (Full baseline)
-    // Zone 1: 50°C - 53°C -> 0.85 (15% derate)
-    // Zone 2: 54°C - 56°C -> 0.70 (30% derate)
-    // Zone 3: 57°C - 58°C -> 0.50 (50% derate)
-    // Zone 4: >= 59°C -> 0.30 (70% emergency derate, min 5A floor)
-    float targetScale = 1.0f;
-
-    if (peakT >= 59.0f) {
-        targetScale = 0.30f;
-    } else if (peakT >= 57.0f) {
-        targetScale = 0.50f;
-    } else if (peakT >= 54.0f) {
-        targetScale = 0.70f;
-    } else if (peakT >= 50.0f) {
-        targetScale = 0.85f;
-    } else if (peakT <= 47.0f) {
-        // Recovery threshold: Heatsink must cool down to <= 47°C to step up to 100%
-        targetScale = 1.0f;
-    } else {
-        // In the hysteresis band (47.1°C - 49.9°C): retain current active derate scale
-        if (_governor.isDerated && _governor.baselineMaxc > 0.0f) {
-            targetScale = _governor.activeMaxc / _governor.baselineMaxc;
-        } else {
-            targetScale = 1.0f;
+    // 2. Compute CC/CV Tapering target current from measured pack voltage:
+    float packV = 0.0f;
+    float totalA = 0.0f;
+    for (int i = 0; i < NUM_CHARGERS; i++) {
+        if (_chargers[i].voltage > packV) {
+            packV = _chargers[i].voltage;
         }
+        totalA += _chargers[i].current;
+    }
+    float cccvTargetAmps = CccvGovernor::getInstance().update(packV, totalA, chargingActive);
+
+    // 3. Determine target commanded total current for EVCC:
+    // EVCC distributes maxc equally to all active chargers.
+    // Thermal governor target:
+    float thermalTargetAmps = round((_governor.baselineMaxc * minAllowedScale) * 10.0f) / 10.0f;
+    if (thermalTargetAmps < 5.0f && _governor.baselineMaxc >= 5.0f) {
+        thermalTargetAmps = 5.0f; // Absolute safe floor
     }
 
-    float targetAmps = round((_governor.baselineMaxc * targetScale) * 10.0f) / 10.0f;
-    if (targetAmps < 5.0f && _governor.baselineMaxc >= 5.0f) {
-        targetAmps = 5.0f; // Absolute safe floor
+    // Arbitration: Take the MINIMUM of Thermal Governor and CC/CV Governor
+    float targetAmps = thermalTargetAmps;
+    bool cccvGoverning = false;
+    if (CccvGovernor::getInstance().getProfile().enabled && cccvTargetAmps < thermalTargetAmps) {
+        targetAmps = cccvTargetAmps;
+        cccvGoverning = true;
     }
 
-    bool needAdjustment = (fabs(targetAmps - _governor.activeMaxc) >= 0.5f);
+    bool isTerminating = (targetAmps <= 0.1f);
+    bool needAdjustment = false;
+    if (isTerminating) {
+        needAdjustment = (_governor.activeMaxc > 0.0f);
+    } else if (!CccvGovernor::getInstance().getProfile().smoothLinear) {
+        needAdjustment = (fabs(targetAmps - _governor.activeMaxc) >= 1.0f);
+    } else {
+        needAdjustment = (fabs(targetAmps - _governor.activeMaxc) >= 0.5f);
+    }
+
     bool isSteppingDown = (targetAmps < _governor.activeMaxc);
     bool isSteppingUp   = (targetAmps > _governor.activeMaxc);
 
     // Dwell time: When stepped down, hold derated level for at least 90s before stepping up!
     bool dwellSatisfied = (now - _lastDerateTimeMs >= 90000);
 
-    // Emergency throttle (>=59°C) or stepping down acts quickly (min 15s).
-    // Stepping back UP requires 90s dwell time to prevent cycling/hunting.
+    // Emergency throttle (>=82°C) or CC/CV taper stepping down acts in 15s.
+    // Immediate cutoff terminates without waiting.
     bool canAdjust = false;
-    if (peakT >= 59.0f && isSteppingDown) {
-        canAdjust = true; // Immediate emergency reaction
+    if (isTerminating) {
+        canAdjust = true;
+    } else if (_governor.peakTemp >= 82.0f && isSteppingDown) {
+        canAdjust = true;
     } else if (isSteppingDown && (now - _lastGovernorAdjustMs >= 15000)) {
         canAdjust = true;
     } else if (isSteppingUp && (now - _lastGovernorAdjustMs >= 15000) && dwellSatisfied) {
@@ -701,29 +789,44 @@ void EvccParser::updateThermalGovernor() {
         _governor.isDerated = (targetAmps < _governor.baselineMaxc - 0.5f);
         _governor.deratePercent = round((targetAmps / _governor.baselineMaxc) * 100.0f);
 
-        if (_governor.isDerated) {
-            char statusBuf[48];
-            snprintf(statusBuf, sizeof(statusBuf), "Derated (%d%% @ %.0f°C)", (int)_governor.deratePercent, peakT);
+        if (cccvGoverning) {
+            _governor.statusText = String("CC/CV: ") + CccvGovernor::getInstance().getStatus().statusText;
+            EventLogger::getInstance().log("GOVERNOR", "CC/CV Taper active: %.1fA (Pack %.1fV, %s)",
+                targetAmps, packV, CccvGovernor::getInstance().getStatus().phase.c_str());
+        } else if (_governor.isDerated && limitingChargerIdx >= 0) {
+            char statusBuf[64];
+            snprintf(statusBuf, sizeof(statusBuf), "Thermal Derated (%d%% by %s @ %.0f°C)",
+                     (int)_governor.deratePercent,
+                     _chargers[limitingChargerIdx].name.c_str(),
+                     _governor.chargers[limitingChargerIdx].currentTemp);
             _governor.statusText = String(statusBuf);
             EventLogger::getInstance().log("GOVERNOR", "Throttled maxc from %.1fA to %.1fA (%d%%) [%s at %.0fC]",
-                prevMaxc, targetAmps, (int)_governor.deratePercent, hottest.c_str(), peakT);
+                prevMaxc, targetAmps, (int)_governor.deratePercent,
+                _chargers[limitingChargerIdx].name.c_str(),
+                _governor.chargers[limitingChargerIdx].currentTemp);
         } else {
             _governor.statusText = "Optimal";
             _governor.deratePercent = 100.0f;
-            EventLogger::getInstance().log("GOVERNOR", "Restored baseline maxc %.1fA (Cool: %.0fC)", targetAmps, peakT);
+            EventLogger::getInstance().log("GOVERNOR", "Restored baseline maxc %.1fA (Cool: %.0fC)", targetAmps, _governor.peakTemp);
         }
 
         // Send adjusted maxc to EVCC
         char cmdBuf[32];
         snprintf(cmdBuf, sizeof(cmdBuf), "set maxc %.1f", targetAmps);
         sendRawCommand(cmdBuf);
+        CccvGovernor::getInstance().recordEepromWrite();
     } else {
         // Update live status text
-        if (_governor.isDerated) {
-            char statusBuf[48];
-            snprintf(statusBuf, sizeof(statusBuf), "Derated (%d%% @ %.0f°C)", (int)_governor.deratePercent, peakT);
+        if (cccvGoverning) {
+            _governor.statusText = String("CC/CV: ") + CccvGovernor::getInstance().getStatus().statusText;
+        } else if (_governor.isDerated && limitingChargerIdx >= 0) {
+            char statusBuf[64];
+            snprintf(statusBuf, sizeof(statusBuf), "Thermal Derated (%d%% by %s @ %.0f°C)",
+                     (int)_governor.deratePercent,
+                     _chargers[limitingChargerIdx].name.c_str(),
+                     _governor.chargers[limitingChargerIdx].currentTemp);
             _governor.statusText = String(statusBuf);
-        } else if (peakT >= 50.0f) {
+        } else if (_governor.peakTemp >= 75.0f) {
             _governor.statusText = "Warm (Monitoring)";
         } else {
             _governor.statusText = "Optimal";

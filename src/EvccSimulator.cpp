@@ -188,25 +188,25 @@ void EvccSimulator::applyScenario(SimScenario scenario) {
         case SIM_OVERTEMP_FAULT:
             _c1_v = 116.0f;
             _c1_a = 0.0f;
-            _c1_temp = 68.0f;
+            _c1_temp = 88.0f;
             _c1_faults.overtemp = true;
             _c1_faults.not_charging = true;
 
             _c2_v = 116.0f;
             _c2_a = 0.0f;
-            _c2_temp = 66.0f;
+            _c2_temp = 86.0f;
             _c2_faults.overtemp = true;
             _c2_faults.not_charging = true;
 
             _c3_v = 116.0f;
             _c3_a = 0.0f;
-            _c3_temp = 67.0f;
+            _c3_temp = 87.0f;
             _c3_faults.overtemp = true;
             _c3_faults.not_charging = true;
 
             _c4_v = 116.0f;
             _c4_a = 0.0f;
-            _c4_temp = 65.0f;
+            _c4_temp = 85.0f;
             _c4_faults.overtemp = true;
             _c4_faults.not_charging = true;
 

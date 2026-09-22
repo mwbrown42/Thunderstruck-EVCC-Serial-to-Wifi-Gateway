@@ -2,6 +2,7 @@
 #include "WebAssets.h"
 #include "EvccParser.h"
 #include "EvccSimulator.h"
+#include "CccvGovernor.h"
 #include "WiFiConfigManager.h"
 #include "USBSerialHost.h"
 #include "EventLogger.h"
@@ -415,6 +416,37 @@ void WebServerManager::handleWebSocketMessage(void *arg, uint8_t *data, size_t l
             if (line.length() > 0) {
                 EvccSimulator::getInstance().injectRawLine(line);
             }
+        } else if (action == "toggle_cccv") {
+            bool enabled = doc["enabled"] | true;
+            CccvGovernor::getInstance().setEnabled(enabled);
+        } else if (action == "set_cccv_preset") {
+            String preset = doc["preset"] | "";
+            if (preset == "conservative") {
+                CccvGovernor::getInstance().loadPresetTesla36SConservative();
+            } else if (preset == "standard") {
+                CccvGovernor::getInstance().loadPresetTesla36SStandard();
+            } else if (preset == "max_range") {
+                CccvGovernor::getInstance().loadPresetTesla36SMaxRange();
+            }
+        } else if (action == "set_cccv_profile") {
+            CccvProfile p = CccvGovernor::getInstance().getProfile();
+            if (doc["enabled"].is<bool>()) p.enabled = doc["enabled"].as<bool>();
+            if (doc["cellCount"].is<uint8_t>()) p.cellCount = doc["cellCount"].as<uint8_t>();
+            if (doc["smoothLinear"].is<bool>()) p.smoothLinear = doc["smoothLinear"].as<bool>();
+            if (doc["fastCutoff"].is<bool>()) p.fastCutoff = doc["fastCutoff"].as<bool>();
+            if (doc["termAmps"].is<float>()) p.terminationAmps = doc["termAmps"].as<float>();
+            JsonArray pts = doc["points"].as<JsonArray>();
+            if (!pts.isNull()) {
+                int idx = 0;
+                for (JsonObject pt : pts) {
+                    if (idx < CCCV_NUM_POINTS) {
+                        p.points[idx].voltage = pt["v"] | p.points[idx].voltage;
+                        p.points[idx].current = pt["a"] | p.points[idx].current;
+                        idx++;
+                    }
+                }
+            }
+            CccvGovernor::getInstance().setProfile(p);
         }
     }
 }
@@ -512,6 +544,41 @@ void WebServerManager::broadcastTelemetry(const ChargerTelemetry chargers[NUM_CH
     gov["peakTemp"] = govStatus.peakTemp;
     gov["hottestCharger"] = govStatus.hottestCharger;
     gov["statusText"] = govStatus.statusText;
+
+    JsonArray govChargers = gov["chargers"].to<JsonArray>();
+    for (int i = 0; i < NUM_CHARGERS; i++) {
+        JsonObject gch = govChargers.add<JsonObject>();
+        gch["id"] = i + 1;
+        gch["isDerated"] = govStatus.chargers[i].isDerated;
+        gch["temp"] = govStatus.chargers[i].currentTemp;
+        gch["scale"] = govStatus.chargers[i].targetScale;
+        gch["targetAmps"] = govStatus.chargers[i].targetAmps;
+        gch["statusText"] = govStatus.chargers[i].statusText;
+    }
+
+    // CC/CV Dynamic Tapering Telemetry
+    JsonObject cccv = doc["cccv"].to<JsonObject>();
+    const CccvGovernorStatus& cccvStatus = CccvGovernor::getInstance().getStatus();
+    const CccvProfile& cccvProf = CccvGovernor::getInstance().getProfile();
+    cccv["enabled"] = cccvStatus.enabled;
+    cccv["isTapering"] = cccvStatus.isTapering;
+    cccv["packVoltage"] = cccvStatus.packVoltage;
+    cccv["cellVoltage"] = cccvStatus.cellVoltageEquiv;
+    cccv["targetAmps"] = cccvStatus.targetAmps;
+    cccv["activeCurrent"] = cccvStatus.activeCurrent;
+    cccv["phase"] = cccvStatus.phase;
+    cccv["statusText"] = cccvStatus.statusText;
+    cccv["cellCount"] = cccvProf.cellCount;
+    cccv["smoothLinear"] = cccvProf.smoothLinear;
+    cccv["fastCutoff"] = cccvProf.fastCutoff;
+    cccv["termAmps"] = cccvProf.terminationAmps;
+    cccv["writesThisSession"] = cccvStatus.writesThisSession;
+    JsonArray pts = cccv["points"].to<JsonArray>();
+    for (int i = 0; i < CCCV_NUM_POINTS; i++) {
+        JsonObject pt = pts.add<JsonObject>();
+        pt["v"] = cccvProf.points[i].voltage;
+        pt["a"] = cccvProf.points[i].current;
+    }
 
     // Simulation metadata
     JsonObject sim = doc["sim"].to<JsonObject>();

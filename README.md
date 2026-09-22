@@ -16,10 +16,14 @@ Built for custom electric vehicle conversions, digital dashboards, and automated
   - [Optional Direct TTL Connection](#optional-direct-ttl-connection)
 - [Wiring & Connection Diagrams](#wiring--connection-diagrams)
 - [Status LED Indications](#status-led-indications)
-- [Thermal Governor v3.0](#thermal-governor-v30)
-  - [Dynamic Current Throttling](#dynamic-current-throttling)
-  - [4°C Hysteresis Guard](#4c-hysteresis-guard)
+- [Thermal Governor v4.0 (75°C Knee & Per-Charger Throttling)](#thermal-governor-v40)
+  - [Independent Per-Charger Throttling](#independent-per-charger-throttling)
+  - [Graduated Derate & 4°C Hysteresis Guard](#graduated-derate--4c-hysteresis-guard)
   - [90-Second Dwell Stabilization Timer](#90-second-dwell-stabilization-timer)
+- [CC/CV Saturation Governor & Dynamic Charge Curve](#cccv-saturation-governor--dynamic-charge-curve)
+  - [Tesla 36S Pack Profile & Presets](#tesla-36s-pack-profile--presets)
+  - [EEPROM Endurance Protection (Discrete Stepped Mode)](#eeprom-endurance-protection)
+  - [Clean Immediate Fast Cutoff](#clean-immediate-fast-cutoff)
 - [Subnet UDP Broadcast Protocol (Port 8888)](#subnet-udp-broadcast-protocol-port-8888)
 - [Web Dashboard & Controls](#web-dashboard--controls)
 - [Standalone Android Companion App](#standalone-android-companion-app)
@@ -57,11 +61,17 @@ This project turns an inexpensive **ESP32-S3** board into an intelligent gateway
   - **Charger 3**: `charger3` / `tsm2500_42` (CAN ID 42 / 0x2A)
   - **Charger 4**: `charger4` / `tsm2500_43` (CAN ID 43 / 0x2B) or `elcon`
   - Independently tracks **Voltage (V)**, **Current (A)**, **Power (W)**, **Energy (Wh)**, and **Temperature (°C)** across all units with aggregate charge wattage.
-- **v3.0 Thermal Governor**:
-  - Closed-loop dynamic current throttling based on real-time charger temperatures.
-  - **4°C Hysteresis Guard** prevents continuous oscillating around trip thresholds.
-  - **90-Second Dwell Stabilization Timer** ensures charger hardware thermally settles before current is restored.
-  - Clear state reporting: `OPTIMAL`, `DERATE (50°C)`, `TRIP (60°C)`.
+- **v4.0 Thermal Governor**:
+  - **Independent Per-Charger Throttling**: Monitors heatsink temperatures for each unit separately, computing individual derating allocations rather than punishing cooler chargers.
+  - **75°C Knee**: Chargers run at 100% full capacity until 75°C, where graduated throttling engages (85%, 70%, 50%, 30% emergency floor).
+  - **4°C Recovery Hysteresis** (<= 71°C) and **90-Second Dwell Timer** prevent boundary oscillation.
+  - **85°C Emergency Trip Boundary**: Hard safety cutoff protects electronics from severe thermal runaway.
+- **Dynamic CC/CV Saturation Governor**:
+  - Closed-loop multi-point current tapering as pack voltage approaches full capacity (tailored for Tesla 36S NCA modules, up to 7.5 kW+ multi-charger setups).
+  - **EEPROM Endurance Protection**: Defaults to **Discrete Stepped Mode** with a $\ge 1.0\text{A}$ deadband, reducing EVCC microcontroller EEPROM writes from thousands down to just 4–5 writes per charge session.
+  - **Clean Immediate Fast Cutoff**: Directly commands `set maxc 0.0` at final voltage/current cutoff, cleanly triggering EVCC termination (`CHARGE -> STANDBY`) and opening contactors rather than trickling indefinitely.
+  - **Live EEPROM Write Counter**: Real-time telemetry counter tracks cumulative writes.
+  - **Pre-Configured Presets**: Instant selection between **Conservative (4.10V)**, **Standard (4.15V)**, **Max Range (4.20V)**, and fully customizable user curves.
 - **Subnet UDP Broadcast (Port 8888)**:
   - Continuous 1-second JSON telemetry broadcast on `255.255.255.255:8888`.
   - Zero-configuration auto-discovery: Client dashboards (tablets, car PCs) discover the gateway IP dynamically without manual IP entry.
@@ -193,9 +203,9 @@ The onboard addressable RGB LED (GPIO 48) indicates system state in real time:
 
 ---
 
-## Thermal Governor v3.0
+## Thermal Governor v4.0
 
-The **Thermal Governor** protects dual or quad TSM-2500 chargers from thermal degradation during prolonged charging sessions.
+The **Thermal Governor** protects dual or quad TSM-2500 chargers from thermal degradation during prolonged charging sessions. TSM-2500 chargers operate comfortably up to **75°C**, which serves as the knee where active throttling begins:
 
 ```
                     ┌────────────────────────┐
@@ -207,26 +217,76 @@ The **Thermal Governor** protects dual or quad TSM-2500 chargers from thermal de
         Charger 1 Temp                 Charger 2 Temp
                  └──────────────┬──────────────┘
                                 │
-                       Max Temp Evaluated
+                    Evaluated Independently
                                 │
           ┌─────────────────────┼─────────────────────┐
           ▼                     ▼                     ▼
-     <= 47°C               50°C - 59°C             >= 60°C
-  [  OPTIMAL  ]         [ DERATE STAGE ]        [ TRIP / STOP ]
-   100% Current          Graduated Derate          0A Cutoff
-   (90s Dwell)           (3°C Hysteresis)        EVCC Shutdown
+       < 75°C              75°C - 84°C             >= 85°C
+   [  OPTIMAL  ]        [ GRADUATED DERATE ]     [ TRIP / CUTOFF ]
+   100% Capacity          85% / 70% / 50% / 30%       0A Cutoff
+   (<= 71°C Recov)        (Individual Scaling)     Emergency Floor
 ```
 
-### Dynamic Current Throttling
-- **Normal (< 50°C)**: 100% user-configured charging current (`maxc`, up to **80.0A** total / **20.0A** per charger for a full 4-charger system).
-- **Derate (50°C - 59°C)**: Automatically throttles current in graduated stages (85%, 70%, 50%, 30% emergency floor) to arrest heatsink temperature rise while safely sustaining the charging session.
-- **Trip (>= 60°C)**: Immediate hard trip cutoff (`0A`). The EVCC hardware trips charging at 60°C to protect electronics. Charging is suspended until chargers cool down safely.
+### Independent Per-Charger Throttling
+Because chargers are mounted in different locations and may receive different airflow, each connected unit is monitored and throttled individually:
+- A cooler charger running at 68°C continues to deliver full power.
+- A warmer charger passing 75°C is derated proportionally.
+- Overall pack current target (`maxc`) is dynamically scaled to match the safe aggregate capability of all online chargers.
 
-### 3°C Hysteresis Guard
-Prevents rapid chatter around the trip boundary. If the governor enters derate at 50°C, heatsinks must cool down to **<= 47°C** before the governor permits stepping back up to 100% current.
+### Graduated Derate & 4°C Hysteresis Guard
+- **Zone 0 (< 75°C)**: 100% unconstrained current (`Optimal`).
+- **Zone 1 (75°C – 78°C)**: 85% scale (`Mild Derate`).
+- **Zone 2 (79°C – 81°C)**: 70% scale (`Moderate Derate`).
+- **Zone 3 (82°C – 83°C)**: 50% scale (`Heavy Derate`).
+- **Zone 4 (>= 84°C)**: 30% emergency floor (`Critical Derate`).
+- **Emergency Trip (>= 85°C)**: Hard 0A shutdown to prevent permanent silicon damage.
+- **Recovery Hysteresis**: Once derated, a charger must cool down below **<= 71°C** (a 4°C recovery buffer) before ascending back to normal full-capacity operation.
 
 ### 90-Second Dwell Stabilization Timer
-When temperature returns to the safe zone, the governor enforces a **90-second dwell period** at the reduced current rate. This guarantees thermal inertia inside the charger casing has dissipated before stepping current back up.
+When heatsink temperature recovers below a derate threshold, the governor enforces a **90-second dwell period** at the reduced rate to ensure internal semiconductor junction temperatures have fully dissipated before increasing current.
+
+---
+
+## CC/CV Saturation Governor & Dynamic Charge Curve
+
+Pumping full power (e.g. 5.0 kW to 7.5 kW) into Lithium-ion cells all the way to 4.2V/cell causes dangerous voltage spikes, uneven cell balance, and accelerates cell degradation. The firmware implements an automated **Constant Current / Constant Voltage (CC/CV)** charge profile governor.
+
+```
+ Current (A)
+   50A ───┐ [Point 1: Bulk CC]
+          │
+   35A ───┴───┐ [Point 2]
+              │
+   20A ───────┴───┐ [Point 3: Saturation Knee]
+                  │
+   10A ───────────┴───┐ [Point 4]
+                      │
+    4A ───────────────┴───┐ [Point 5: Termination]
+                          │ (Clean Cutoff: set maxc 0.0)
+    0A ───────────────────┴────────────────────────────── Pack Voltage (V)
+```
+
+### Tesla 36S Pack Profile & Presets
+
+Configured out of the box with 3 cell-chemistry presets based on Tesla Model S 18650 NCA module specifications (36 cells in series):
+
+| Preset | Target Cell V | Point 1 (50A) | Point 2 (35A) | Point 3 (20A) | Point 4 (10A) | Point 5 (4A) | Termination |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Conservative** *(Recommended)* | **4.10 V/cell** (147.6V) | 143.3 V | 145.4 V | 146.5 V | 147.2 V | 147.6 V | 4.0 A |
+| **Standard** | **4.15 V/cell** (149.4V) | 145.0 V | 147.0 V | 148.0 V | 148.8 V | 149.4 V | 4.0 A |
+| **Max Range** | **4.20 V/cell** (151.2V) | 146.5 V | 148.5 V | 149.8 V | 150.5 V | 151.2 V | 4.0 A |
+| **Custom** | *User Defined* | Custom V / A | Custom V / A | Custom V / A | Custom V / A | Custom V / A | Custom A |
+
+### EEPROM Endurance Protection
+The EVCC stores runtime parameters in onboard microcontroller EEPROM. Continuously writing micro-adjusted currents every second would exhaust EEPROM write cycles within months.
+- **Discrete Stepped Mode (Default)**: The governor steps current strictly when transitioning across defined curve thresholds with a $\ge 1.0\text{A}$ change deadband. A typical top-balancing charge session executes only **4 to 5 total EEPROM writes** (approx. 8–10 writes per year if topping off twice annually).
+- **Live EEPROM Write Counter**: Tracks and broadcasts cumulative writes during each session for complete visibility.
+- **Optional Smooth Linear Interpolation**: Available for users who prioritize mathematical linearity over EEPROM cycle preservation.
+
+### Clean Immediate Fast Cutoff
+Prolonged trickling at low currents (< 4A) near maximum cell voltage wastes hours and accelerates high-voltage electrolyte oxidation.
+- When pack voltage reaches Point 5 and charging current falls to the configured termination threshold (`termc`, default 4.0A), the governor commands `set maxc 0.0`.
+- This triggers the EVCC's native termination sequence cleanly (`CHARGE -> STANDBY`), opening high-voltage contactors immediately and shutting down the chargers without lingering at low current.
 
 ---
 

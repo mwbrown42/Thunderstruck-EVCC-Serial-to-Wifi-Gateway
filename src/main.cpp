@@ -4,6 +4,7 @@
 #include "WebServerManager.h"
 #include "EvccParser.h"
 #include "EvccSimulator.h"
+#include "CccvGovernor.h"
 #include "WiFiConfigManager.h"
 #include "USBSerialHost.h"
 #include "StatusLedManager.h"
@@ -63,6 +64,9 @@ void setup() {
 
     // Initialize Simulator
     EvccSimulator::getInstance().begin();
+
+    // Initialize CC/CV Dynamic Tapering Governor
+    CccvGovernor::getInstance().begin();
 
     // 3. Initialize USB Serial Host (or Hardware UART fallback)
     USBSerialHost& usbHost = USBSerialHost::getInstance();

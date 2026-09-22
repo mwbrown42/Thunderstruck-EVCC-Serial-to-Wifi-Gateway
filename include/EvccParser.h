@@ -74,6 +74,7 @@ private:
     uint32_t _lastGovernorAdjustMs = 0;
     uint32_t _lastDerateTimeMs = 0;
     float _filteredPeakTemp = 0.0f;
+    float _filteredChargerTemp[NUM_CHARGERS] = {0.0f, 0.0f, 0.0f, 0.0f};
     uint32_t _chargeSessionStartMs = 0;
 
     bool _traceChargerActive;

@@ -233,14 +233,20 @@ Because chargers are mounted in different locations and may receive different ai
 - A warmer charger passing 75°C is derated proportionally.
 - Overall pack current target (`maxc`) is dynamically scaled to match the safe aggregate capability of all online chargers.
 
+### User-Configurable Max Temp (Throttling Knee)
+The temperature knee is fully user-configurable on the fly via the Web UI, Android Companion App, or WebSocket CLI (`set maxt <degC>` / `{"action":"set_param","param":"maxt","value":75}`).
+- **Default**: 75°C.
+- **Dynamic Zones**: Setting `Max Temp` adjusts Zone 1 (knee) through Zone 4 (84°C floor) and the 4°C hysteresis recovery point (`knee - 4°C`) dynamically at runtime.
+- **On-the-fly Experimentation**: Allows testing thermal airflow and charging performance without editing firmware code.
+
 ### Graduated Derate & 4°C Hysteresis Guard
-- **Zone 0 (< 75°C)**: 100% unconstrained current (`Optimal`).
-- **Zone 1 (75°C – 78°C)**: 85% scale (`Mild Derate`).
-- **Zone 2 (79°C – 81°C)**: 70% scale (`Moderate Derate`).
-- **Zone 3 (82°C – 83°C)**: 50% scale (`Heavy Derate`).
+- **Zone 0 (< Knee)**: 100% unconstrained current (`Optimal`).
+- **Zone 1 (Knee to Knee + 35% of remaining span)**: 85% scale (`Mild Derate`).
+- **Zone 2 (Knee + 35% to Knee + 70%)**: 70% scale (`Moderate Derate`).
+- **Zone 3 (Knee + 70% to 84°C)**: 50% scale (`Heavy Derate`).
 - **Zone 4 (>= 84°C)**: 30% emergency floor (`Critical Derate`).
 - **Emergency Trip (>= 85°C)**: Hard 0A shutdown to prevent permanent silicon damage.
-- **Recovery Hysteresis**: Once derated, a charger must cool down below **<= 71°C** (a 4°C recovery buffer) before ascending back to normal full-capacity operation.
+- **Recovery Hysteresis**: Once derated, a charger must cool down below **<= (Knee - 4°C)** before ascending back to normal full-capacity operation.
 
 ### 90-Second Dwell Stabilization Timer
 When heatsink temperature recovers below a derate threshold, the governor enforces a **90-second dwell period** at the reduced rate to ensure internal semiconductor junction temperatures have fully dissipated before increasing current.

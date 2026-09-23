@@ -386,6 +386,8 @@ void WebServerManager::handleWebSocketMessage(void *arg, uint8_t *data, size_t l
                 parser.setMaxCurrent(val);
             } else if (param == "termc") {
                 parser.setTermCurrent(val);
+            } else if (param == "maxt" || param == "max_temp") {
+                parser.setGovernorMaxTemp(val);
             }
         } else if (action == "set_governor") {
             bool enabled = doc["enabled"] | true;
@@ -544,6 +546,7 @@ void WebServerManager::broadcastTelemetry(const ChargerTelemetry chargers[NUM_CH
     gov["peakTemp"] = govStatus.peakTemp;
     gov["hottestCharger"] = govStatus.hottestCharger;
     gov["statusText"] = govStatus.statusText;
+    gov["maxTemp"] = govStatus.maxTemp;
 
     JsonArray govChargers = gov["chargers"].to<JsonArray>();
     for (int i = 0; i < NUM_CHARGERS; i++) {

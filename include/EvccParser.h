@@ -47,6 +47,8 @@ public:
     const ThermalGovernorStatus& getThermalGovernorStatus() const { return _governor; }
     void setThermalGovernorEnabled(bool enable);
     bool isThermalGovernorEnabled() const { return _governor.enabled; }
+    void setGovernorMaxTemp(float temp);
+    float getGovernorMaxTemp() const { return _governor.maxTemp; }
 
     // Callbacks
     void setRawLineCallback(RawLineCallback cb) { _rawLineCb = cb; }

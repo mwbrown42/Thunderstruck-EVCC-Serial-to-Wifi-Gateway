@@ -108,6 +108,7 @@ struct ThermalGovernorStatus {
     float peakTemp          = 0.0f;    // Highest charger heatsink temperature currently observed
     String hottestCharger   = "";      // Name of the charger currently running hottest
     String statusText       = "Optimal"; // "Optimal", "Warm", "Derated (-30%)", "Emergency Floor"
+    float maxTemp           = 75.0f;   // User-adjustable throttling knee / max temp limit (°C)
     ChargerGovernorStatus chargers[4];  // Individual throttling status per charger
 };
 

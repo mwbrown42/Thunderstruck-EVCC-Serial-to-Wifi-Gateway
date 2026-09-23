@@ -572,6 +572,13 @@ void EvccParser::setThermalGovernorEnabled(bool enable) {
     }
 }
 
+void EvccParser::setGovernorMaxTemp(float temp) {
+    if (temp < 45.0f) temp = 45.0f;
+    if (temp > 84.0f) temp = 84.0f;
+    _governor.maxTemp = temp;
+    EventLogger::getInstance().log("GOVERNOR", "Max Temp cap set to %.1f°C", temp);
+}
+
 void EvccParser::updateThermalGovernor() {
     uint32_t now = millis();
     if (now - _lastGovernorCheckMs < 1000) return;
@@ -626,13 +633,17 @@ void EvccParser::updateThermalGovernor() {
 
     // 1. Calculate individual thermal governor status for EACH charger separately
     // TSM-2500 internal trip ceiling is 85°C.
-    // Zones with 75°C knee:
-    // Zone 0: < 75°C -> 1.00 (Full 100% capacity - chargers run full blast)
-    // Zone 1: 75°C - 78°C -> 0.85 (Mild 15% derate to stabilize)
-    // Zone 2: 79°C - 81°C -> 0.70 (Moderate 30% derate)
-    // Zone 3: 82°C - 83°C -> 0.50 (Heavy 50% derate)
-    // Zone 4: >= 84°C -> 0.30 (70% emergency floor before 85°C trip)
-    // Recovery threshold: <= 71°C (must cool to <= 71°C before lifting derate)
+    // Dynamic throttling knee based on user-configured maxTemp:
+    float knee = _governor.maxTemp;
+    if (knee < 45.0f) knee = 45.0f;
+    if (knee > 83.0f) knee = 83.0f;
+
+    float z1 = knee;
+    float z2 = knee + (84.0f - knee) * 0.35f;
+    float z3 = knee + (84.0f - knee) * 0.70f;
+    float z4 = 84.0f;
+    float recov = knee - 4.0f;
+
     float minAllowedScale = 1.0f;
     int limitingChargerIdx = -1;
 
@@ -649,33 +660,33 @@ void EvccParser::updateThermalGovernor() {
         float chScale = 1.0f;
         String chStatus = "Optimal";
 
-        if (chTemp >= 84.0f) {
+        if (chTemp >= z4) {
             chScale = 0.30f;
             char sbuf[48];
             snprintf(sbuf, sizeof(sbuf), "Emergency Floor (30%% @ %.0f°C)", chTemp);
             chStatus = String(sbuf);
-        } else if (chTemp >= 82.0f) {
+        } else if (chTemp >= z3) {
             chScale = 0.50f;
             char sbuf[48];
             snprintf(sbuf, sizeof(sbuf), "Heavy Derate (50%% @ %.0f°C)", chTemp);
             chStatus = String(sbuf);
-        } else if (chTemp >= 79.0f) {
+        } else if (chTemp >= z2) {
             chScale = 0.70f;
             char sbuf[48];
             snprintf(sbuf, sizeof(sbuf), "Moderate Derate (70%% @ %.0f°C)", chTemp);
             chStatus = String(sbuf);
-        } else if (chTemp >= 75.0f) {
+        } else if (chTemp >= z1) {
             chScale = 0.85f;
             char sbuf[48];
             snprintf(sbuf, sizeof(sbuf), "Mild Derate (85%% @ %.0f°C)", chTemp);
             chStatus = String(sbuf);
-        } else if (chTemp <= 71.0f) {
+        } else if (chTemp <= recov) {
             chScale = 1.0f;
             char sbuf[48];
             snprintf(sbuf, sizeof(sbuf), "Optimal (%.0f°C)", chTemp);
             chStatus = String(sbuf);
         } else {
-            // In hysteresis band (71.1°C - 74.9°C): maintain current individual scale
+            // In hysteresis band (recov to z1): maintain current individual scale
             if (_governor.chargers[i].isDerated) {
                 chScale = _governor.chargers[i].targetScale;
                 chStatus = _governor.chargers[i].statusText;

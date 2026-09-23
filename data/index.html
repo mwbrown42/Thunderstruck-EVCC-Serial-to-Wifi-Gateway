@@ -1433,6 +1433,11 @@
                     <input type="number" step="0.1" class="param-input" id="inp-termc" placeholder="e.g. 1.5">
                     <button class="btn-apply" onclick="applyParam('termc')">Set</button>
                 </div>
+                <div class="param-row">
+                    <span class="param-label">Max Temp (maxt):</span>
+                    <input type="number" step="1" class="param-input" id="inp-maxt" placeholder="e.g. 75">
+                    <button class="btn-apply" onclick="applyParam('maxt')">Set</button>
+                </div>
                 <div class="param-row" style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid rgba(255,255,255,0.07); justify-content:space-between; align-items:center;">
                     <div style="display:flex; flex-direction:column; gap:2px;">
                         <span class="param-label" style="font-weight:600; color:var(--text-main);">🌡️ Auto Thermal Governor:</span>
@@ -2275,8 +2280,12 @@
             const info = document.getElementById('gov-param-info');
             const banner = document.getElementById('thermal-derate-banner');
             const bannerDesc = document.getElementById('derate-banner-desc');
+            const inpMaxt = document.getElementById('inp-maxt');
 
             if (chk) chk.checked = gov.enabled;
+            if (inpMaxt && document.activeElement !== inpMaxt && gov.maxTemp) {
+                inpMaxt.placeholder = gov.maxTemp.toFixed(0);
+            }
 
             if (!gov.enabled) {
                 if (badge) {

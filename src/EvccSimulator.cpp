@@ -103,6 +103,34 @@ void EvccSimulator::applyScenario(SimScenario scenario) {
             _buzzer = "OFF";
             break;
 
+        case SIM_TRIPLE_CHARGE:
+            _c1_v = 116.4f;
+            _c1_a = 20.0f;
+            _c1_temp = 38.0f;
+            _c1_wh = 450.2f;
+
+            _c2_v = 116.5f;
+            _c2_a = 20.0f;
+            _c2_temp = 39.0f;
+            _c2_wh = 446.8f;
+
+            _c3_v = 116.3f;
+            _c3_a = 20.0f;
+            _c3_temp = 37.0f;
+            _c3_wh = 448.1f;
+
+            _c4_v = 0.0f;
+            _c4_a = 0.0f;
+            _c4_temp = 22.0f;
+            _c4_wh = 0.0f;
+
+            _sysState = "CHARGE";
+            _j1772State = "LOCKED";
+            _proximity = "EVSE Connected and locked";
+            _cellLoop = "OK";
+            _buzzer = "OFF";
+            break;
+
         case SIM_DUAL_CHARGE:
             _c1_v = 116.4f;
             _c1_a = 20.0f;
@@ -215,41 +243,12 @@ void EvccSimulator::applyScenario(SimScenario scenario) {
             _buzzer = "ON";
             break;
 
-        case SIM_CAN_RXERR:
-            _c1_faults.rxerr = true;
-            _c2_faults.rxerr = true;
-            _c3_faults.rxerr = true;
-            _c4_faults.rxerr = true;
-            _c1_a = 0.0f;
-            _c2_a = 0.0f;
-            _c3_a = 0.0f;
-            _c4_a = 0.0f;
-            _sysState = "FAULT";
-            _buzzer = "ON";
-            break;
-
-        case SIM_INPUT_VOLTAGE_ERR:
+        case SIM_VOLT_ERR:
             _c1_faults.input_voltage_err = true;
-            _c1_faults.not_charging = true;
-            _c2_faults.input_voltage_err = true;
-            _c2_faults.not_charging = true;
-            _c3_faults.input_voltage_err = true;
-            _c3_faults.not_charging = true;
-            _c4_faults.input_voltage_err = true;
-            _c4_faults.not_charging = true;
-            _c1_a = 0.0f;
-            _c2_a = 0.0f;
-            _c3_a = 0.0f;
-            _c4_a = 0.0f;
-            _sysState = "FAULT";
-            break;
-
-        case SIM_PACK_VOLTAGE_ERR:
-            _c1_faults.pack_voltage_err = true;
             _c1_faults.not_charging = true;
             _c2_faults.pack_voltage_err = true;
             _c2_faults.not_charging = true;
-            _c3_faults.pack_voltage_err = true;
+            _c3_faults.input_voltage_err = true;
             _c3_faults.not_charging = true;
             _c4_faults.pack_voltage_err = true;
             _c4_faults.not_charging = true;

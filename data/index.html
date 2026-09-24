@@ -944,6 +944,7 @@
                 <span id="serial-label">EVCC Serial</span>
             </div>
             <div class="badge" id="badge-ip">IP: <strong>192.168.4.1</strong></div>
+            <a href="/update" class="btn-settings" style="text-decoration:none; display:inline-flex; align-items:center; gap:0.3rem;" title="Wireless OTA Firmware Update">🔄 OTA</a>
             <button class="btn-settings" onclick="openSettingsModal()">⚙️ Settings</button>
         </div>
     </header>
@@ -1647,6 +1648,18 @@
                 </div>
 
                 <hr style="border-color:var(--border); margin:1.25rem 0;">
+
+                <div style="background:rgba(6, 182, 212, 0.08); border:1px solid rgba(6, 182, 212, 0.3); border-radius:8px; padding:0.85rem; margin-bottom:1.25rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-size:0.85rem; font-weight:700; color:#38bdf8;">🔄 Wireless OTA Firmware Update</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">Upload compiled .bin firmware directly from your phone/browser</div>
+                        </div>
+                        <a href="/update" style="display:inline-flex; align-items:center; gap:0.35rem; padding:0.45rem 0.85rem; border-radius:6px; background:#0284c7; color:#fff; text-decoration:none; font-weight:600; font-size:0.8rem; box-shadow:0 0 10px rgba(2,132,199,0.3); white-space:nowrap;">
+                            🚀 Open Updater
+                        </a>
+                    </div>
+                </div>
 
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <button class="btn-settings" style="border-color:var(--danger); color:#f87171;" onclick="resetWifiDefaults()">⚠️ Reset to AP Mode</button>

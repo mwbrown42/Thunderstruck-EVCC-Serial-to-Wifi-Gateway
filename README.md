@@ -13,6 +13,7 @@ Built for custom electric vehicle conversions, digital dashboards, and automated
   - [Port Layout & Roles](#port-layout--roles)
   - [The USB-OTG Solder Jumper (Crucial)](#the-usb-otg-solder-jumper-crucial)
   - [USB-C Power Delivery Note (USB-A vs USB-C Cable)](#usb-c-power-delivery-note)
+  - [Powering Options: Direct 5V & GND Pin Header](#powering-options-direct-5v--gnd-pin-header)
   - [Optional Direct TTL Connection](#optional-direct-ttl-connection)
 - [Wiring & Connection Diagrams](#wiring--connection-diagrams)
 - [Status LED Indications](#status-led-indications)
@@ -30,7 +31,10 @@ Built for custom electric vehicle conversions, digital dashboards, and automated
 - [First-Time WiFi Setup & Web Portal](#first-time-wifi-setup--web-portal)
 - [REST API & WebSocket Protocol](#rest-api--websocket-protocol)
 - [Persistent Flash Event Logging](#persistent-flash-event-logging)
-- [Building and Flashing](#building-and-flashing)
+- [Building, Flashing & Wireless OTA](#building-flashing--wireless-ota)
+  - [1. Prerequisites](#1-prerequisites)
+  - [2. Initial USB Flashing](#2-initial-usb-flashing)
+  - [3. Wireless Web OTA Updates (In-Vehicle)](#3-wireless-web-ota-updates-in-vehicle)
 - [Troubleshooting & Diagnostics](#troubleshooting--diagnostics)
 - [License](#license)
 
@@ -95,6 +99,10 @@ This project turns an inexpensive **ESP32-S3** board into an intelligent gateway
   - **3-minute SoftAP stability guard** prevents repeated connection retries from interrupting mobile devices while configuring settings.
   - Captive Portal configuration modal with **👁️ Show / 🙈 Hide** unmask toggle for WiFi passwords and automatic pre-population of stored credentials.
   - Hold the onboard `BOOT` button (GPIO 0) for 5 seconds to factory-reset WiFi settings back to SoftAP mode.
+- **Wireless Web OTA Firmware Updates**:
+  - Dual-partition A/B flash scheme (`default_16MB.csv`) allows instantaneous, wireless firmware updates directly from your browser at `http://<IP>/update` or via the top-bar **`🔄 OTA`** button.
+  - No USB connection required after installation inside the vehicle.
+  - Includes upload progress bar, byte transfer verification, and automatic 10-second reboot countdown.
 - **Onboard WS2812 RGB Status LED**: Visual color-coded status indication (mode, connection, and data transfer).
 - **Persistent Flash Event Logger**: Non-volatile LittleFS storage records boots, reset reasons, WiFi diagnostics, USB host detection states, and raw TX/RX data for offline diagnosis.
 
@@ -161,6 +169,14 @@ If you do not want to use the USB cable and FTDI adapter, the EVCC 3.5mm jack pr
 - **3.5mm Sleeve (GND)** $\rightarrow$ Connect to **ESP32 GND**
 
 The firmware actively transmits and listens on GPIO 18/17 simultaneously with the USB Host port.
+
+### Powering Options: Direct 5V & GND Pin Header
+
+For permanent in-car installations where the board is installed in an enclosure and USB cables are inaccessible:
+- **Direct 5V Supply**: You can supply a clean, regulated **5.0V (4.8V – 5.3V, 1A–2A)** directly to the pin labeled **`5V`** (or `5V0` / `EXT_5V`) and any **`GND`** pin.
+- **How It Works**: The `5V` pin feeds directly into the onboard Low-Dropout (LDO) linear regulator, stepping down to 3.3V for the ESP32-S3 chip and flash/PSRAM.
+- **USB Host OTG Compatibility**: Supplying 5V via the pin header is the ideal setup when using the USB-C port in OTG Host mode to communicate with the EVCC, ensuring sufficient VBUS power for connected FTDI/serial devices.
+- **Caution**: Do not connect raw 12V automotive battery power directly to the `5V` pin. Always step down 12V through an automotive-grade 5V DC-DC converter (buck converter).
 
 ---
 
@@ -493,7 +509,7 @@ To ensure field testing in vehicles and basements can be diagnosed without a liv
 
 ---
 
-## Building and Flashing
+## Building, Flashing & Wireless OTA
 
 This project is built using [PlatformIO](https://platformio.org/).
 
@@ -501,7 +517,7 @@ This project is built using [PlatformIO](https://platformio.org/).
 - **IDE**: [Antigravity](https://antigravity.google/) or [VS Code](https://code.visualstudio.com/) with the [PlatformIO IDE Extension](https://marketplace.visualstudio.com/items?itemName=platformio.platformio-ide).
 - **CLI Alternative**: [PlatformIO Core CLI](https://docs.platformio.org/en/latest/core/index.html).
 
-### 2. Build & Upload
+### 2. Initial USB Flashing
 
 Connect your ESP32-S3 via the **RIGHT (UART)** USB-C port:
 
@@ -513,12 +529,35 @@ cd Thunderstruck-EVCC-Serial-to-Wifi-Gateway
 # Compile the firmware
 pio run
 
-# Flash to ESP32-S3
+# Flash to ESP32-S3 over COM port
 pio run --target upload
 
 # Open Serial Monitor at 115200 baud
 pio device monitor -b 115200
 ```
+
+### 3. Wireless Web OTA Updates (In-Vehicle)
+
+Once the gateway is installed in your vehicle, you do **not** need to bring a USB cable or PC to the car to update firmware:
+
+1. **Build the Firmware**:
+   Compile the latest code in PlatformIO:
+   ```powershell
+   pio run
+   ```
+   The compiled binary is saved at:
+   ```
+   .pio/build/esp32-s3-devkitc-1/firmware.bin
+   ```
+2. **Open the Updater Page**:
+   Connect your phone, tablet, or laptop to the car's gateway Wi-Fi (`EVCC-Gateway-AP` or vehicle LAN).
+   - Click the **`🔄 OTA`** button in the dashboard top navigation bar, OR
+   - Navigate directly to **`http://<ESP32-IP>/update`** (e.g. `http://192.168.4.1/update`).
+3. **Upload & Flash**:
+   - Choose or drag-and-drop `firmware.bin`.
+   - Click **`🚀 Flash & Update Device`**.
+   - Watch the live progress bar upload and flash the binary into the secondary OTA partition.
+   - The device will automatically reboot into the new firmware within 10 seconds and return you to the dashboard.
 
 ---
 

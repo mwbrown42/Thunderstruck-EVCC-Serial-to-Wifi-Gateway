@@ -7,6 +7,8 @@
 #include "USBSerialHost.h"
 #include "EventLogger.h"
 #include <LittleFS.h>
+#include <Update.h>
+#include "OtaPage.h"
 #include "esp_log.h"
 
 static const char* TAG = "WebServerManager";
@@ -306,6 +308,69 @@ void WebServerManager::setupRoutes() {
         EventLogger::getInstance().clear();
         request->send(200, "application/json", "{\"success\":true,\"message\":\"Flash log cleared\"}");
     });
+
+    // Web OTA Firmware Update UI Page
+    _server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request) {
+        request->send(200, "text/html", OTA_PAGE_HTML);
+    });
+
+    // Web OTA Firmware / Filesystem Binary Upload Handler
+    _server.on("/update", HTTP_POST,
+        [](AsyncWebServerRequest *request) {
+            bool hasError = Update.hasError();
+            AsyncWebServerResponse *response = request->beginResponse(
+                hasError ? 500 : 200,
+                "application/json",
+                hasError ? "{\"success\":false,\"error\":\"Update failed or verification error\"}"
+                         : "{\"success\":true,\"message\":\"Update complete! Rebooting into new firmware...\"}"
+            );
+            response->addHeader("Connection", "close");
+            request->send(response);
+            if (!hasError) {
+                Serial.println("[OTA] Firmware update complete! Restarting ESP32 in 1500ms...");
+                WebServerManager::getInstance().scheduleRestart(1500);
+            }
+        },
+        [](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
+            if (!index) {
+                Serial.printf("[OTA] Update Start: %s\n", filename.c_str());
+                EventLogger::getInstance().log("OTA", "Starting update with file: %s", filename.c_str());
+
+                // Determine whether this is Firmware (U_FLASH) or LittleFS (U_SPIFFS)
+                int cmd = U_FLASH;
+                if (request->hasParam("type")) {
+                    String type = request->getParam("type")->value();
+                    if (type.equalsIgnoreCase("fs") || type.equalsIgnoreCase("spiffs") || type.equalsIgnoreCase("littlefs")) {
+                        cmd = U_SPIFFS;
+                    }
+                } else if (filename.indexOf("littlefs") >= 0 || filename.indexOf("spiffs") >= 0) {
+                    cmd = U_SPIFFS;
+                }
+
+                if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) {
+                    Update.printError(Serial);
+                    EventLogger::getInstance().log("OTA", "Update.begin failed error: %u", (unsigned int)Update.getError());
+                }
+            }
+
+            if (!Update.hasError()) {
+                if (Update.write(data, len) != len) {
+                    Update.printError(Serial);
+                    EventLogger::getInstance().log("OTA", "Update.write failed");
+                }
+            }
+
+            if (final) {
+                if (Update.end(true)) {
+                    Serial.printf("[OTA] Update Success: %u bytes written\n", (unsigned int)(index + len));
+                    EventLogger::getInstance().log("OTA", "Update success! %u bytes written", (unsigned int)(index + len));
+                } else {
+                    Update.printError(Serial);
+                    EventLogger::getInstance().log("OTA", "Update.end failed error: %u", (unsigned int)Update.getError());
+                }
+            }
+        }
+    );
 
     // Captive portal fallback redirect / 404 handler
     _server.onNotFound([](AsyncWebServerRequest *request) {

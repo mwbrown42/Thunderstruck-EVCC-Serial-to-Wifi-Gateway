@@ -15,6 +15,7 @@ compile_commands.json
 # Temporary files
 *.tmp
 *.bak
+*.zip
 scratch/
 GEMINI.md
 
